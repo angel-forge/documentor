@@ -37,7 +37,7 @@ class IngestDocumentation:
 
         chunks: list[Chunk] = []
         for position, text in enumerate(text_chunks):
-            token_count = len(text.split())
+            token_count = self._embedding_service.count_tokens(text)
             content = ChunkContent(text=text, token_count=token_count)
             chunk = Chunk.create(
                 document_id=document.id,

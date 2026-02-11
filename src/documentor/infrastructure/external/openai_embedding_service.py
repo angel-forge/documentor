@@ -1,3 +1,4 @@
+import tiktoken
 from openai import AsyncOpenAI
 
 from documentor.domain.exceptions import EmbeddingGenerationError
@@ -9,6 +10,7 @@ class OpenAIEmbeddingService(EmbeddingService):
     def __init__(self, api_key: str, model: str = "text-embedding-3-small") -> None:
         self._client = AsyncOpenAI(api_key=api_key)
         self._model = model
+        self._encoding = tiktoken.encoding_for_model(model)
 
     async def embed(self, text: str) -> Embedding:
         try:
@@ -30,3 +32,6 @@ class OpenAIEmbeddingService(EmbeddingService):
             raise EmbeddingGenerationError(
                 f"Failed to generate embeddings batch: {e}"
             ) from e
+
+    def count_tokens(self, text: str) -> int:
+        return len(self._encoding.encode(text))

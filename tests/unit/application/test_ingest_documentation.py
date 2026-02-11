@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -24,6 +24,7 @@ def loader() -> AsyncMock:
 def embedding_service() -> AsyncMock:
     mock = AsyncMock()
     mock.embed_batch.return_value = [Embedding.from_list([0.1, 0.2, 0.3])]
+    mock.count_tokens = Mock(return_value=5)
     return mock
 
 
@@ -128,6 +129,22 @@ async def test_execute_should_create_multiple_chunks_for_large_content(
 
     assert result.chunks_created > 1
     assert result.document.chunk_count == result.chunks_created
+
+
+@pytest.mark.asyncio
+async def test_execute_should_use_embedding_service_token_count_when_creating_chunks(
+    use_case: IngestDocumentation,
+    embedding_service: AsyncMock,
+    uow: AsyncMock,
+) -> None:
+    embedding_service.count_tokens = Mock(return_value=42)
+
+    input_dto = IngestDocumentationInput(source="https://example.com/docs")
+    await use_case.execute(input_dto)
+
+    embedding_service.count_tokens.assert_called()
+    saved_chunks = uow.chunks.save_all.call_args[0][0]
+    assert saved_chunks[0].content.token_count == 42
 
 
 @pytest.mark.asyncio
