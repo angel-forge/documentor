@@ -56,6 +56,42 @@ async def test_find_by_id_should_return_none_when_not_found(
 
 
 @pytest.mark.asyncio
+async def test_find_by_ids_should_return_matching_documents_when_ids_exist(
+    repository: PgDocumentRepository,
+    session: AsyncSession,
+) -> None:
+    doc1 = Document.create(
+        source="https://example.com/a",
+        title="Doc A",
+        source_type=SourceType.URL,
+    )
+    doc2 = Document.create(
+        source="https://example.com/b",
+        title="Doc B",
+        source_type=SourceType.URL,
+    )
+
+    await repository.save(doc1)
+    await repository.save(doc2)
+    await session.commit()
+
+    result = await repository.find_by_ids({doc1.id, doc2.id, "nonexistent-id"})
+
+    assert len(result) == 2
+    assert result[doc1.id].title == "Doc A"
+    assert result[doc2.id].title == "Doc B"
+    assert "nonexistent-id" not in result
+
+
+@pytest.mark.asyncio
+async def test_find_by_ids_should_return_empty_dict_when_ids_empty(
+    repository: PgDocumentRepository,
+) -> None:
+    result = await repository.find_by_ids(set())
+    assert result == {}
+
+
+@pytest.mark.asyncio
 async def test_list_all_should_return_all_saved_documents(
     repository: PgDocumentRepository,
     session: AsyncSession,

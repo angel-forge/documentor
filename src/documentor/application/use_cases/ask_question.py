@@ -29,13 +29,12 @@ class AskQuestion:
             chunks = [chunk for chunk, _score in results]
             text = await self._llm_service.generate(question, chunks)
 
-            document_titles: dict[str, str] = {}
-            for chunk, _score in results:
-                if chunk.document_id not in document_titles:
-                    doc = await self._uow.documents.find_by_id(chunk.document_id)
-                    document_titles[chunk.document_id] = (
-                        doc.title if doc else chunk.document_id
-                    )
+            document_ids = {chunk.document_id for chunk, _score in results}
+            documents = await self._uow.documents.find_by_ids(document_ids)
+            document_titles = {
+                doc_id: documents[doc_id].title if doc_id in documents else doc_id
+                for doc_id in document_ids
+            }
 
         sources = [
             SourceReferenceDTO(

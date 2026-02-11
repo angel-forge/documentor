@@ -49,7 +49,7 @@ def uow(sample_chunk: Chunk, sample_document: Document) -> AsyncMock:
     mock = AsyncMock()
     mock.__aenter__.return_value = mock
     mock.chunks.search_similar.return_value = [(sample_chunk, 0.95)]
-    mock.documents.find_by_id.return_value = sample_document
+    mock.documents.find_by_ids.return_value = {sample_chunk.document_id: sample_document}
     return mock
 
 
@@ -108,7 +108,7 @@ async def test_execute_should_raise_error_when_question_is_empty(
 
 
 @pytest.mark.asyncio
-async def test_execute_should_lookup_document_title_when_building_sources(
+async def test_execute_should_batch_lookup_document_titles_when_building_sources(
     use_case: AskQuestion,
     uow: AsyncMock,
     sample_chunk: Chunk,
@@ -117,4 +117,4 @@ async def test_execute_should_lookup_document_title_when_building_sources(
 
     await use_case.execute(input_dto)
 
-    uow.documents.find_by_id.assert_awaited_once_with(sample_chunk.document_id)
+    uow.documents.find_by_ids.assert_awaited_once_with({sample_chunk.document_id})

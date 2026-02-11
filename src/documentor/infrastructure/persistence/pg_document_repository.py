@@ -22,6 +22,13 @@ class PgDocumentRepository(DocumentRepository):
             return None
         return _to_entity(model)
 
+    async def find_by_ids(self, document_ids: set[str]) -> dict[str, Document]:
+        if not document_ids:
+            return {}
+        stmt = select(DocumentModel).where(DocumentModel.id.in_(document_ids))
+        result = await self._session.execute(stmt)
+        return {model.id: _to_entity(model) for model in result.scalars().all()}
+
     async def list_all(self) -> list[Document]:
         result = await self._session.execute(select(DocumentModel))
         return [_to_entity(model) for model in result.scalars().all()]
