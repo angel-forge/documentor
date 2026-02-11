@@ -20,6 +20,7 @@ venv/
 .vscode/
 *.swp
 *.swo
+*.paw
 
 # Testing
 .coverage
