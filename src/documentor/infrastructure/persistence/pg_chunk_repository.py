@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from documentor.domain.models.chunk import Chunk, ChunkContent, Embedding
@@ -30,6 +30,12 @@ class PgChunkRepository(ChunkRepository):
         result = await self._session.execute(stmt)
         rows = result.all()
         return [(_to_entity(row[0]), 1.0 - float(row[1])) for row in rows]
+
+
+    async def delete_by_document_id(self, document_id: str) -> None:
+        stmt = delete(ChunkModel).where(ChunkModel.document_id == document_id)
+        await self._session.execute(stmt)
+        await self._session.flush()
 
 
 def _to_model(chunk: Chunk) -> ChunkModel:

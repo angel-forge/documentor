@@ -1,11 +1,13 @@
+from datetime import UTC, datetime
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
 from documentor.application.dtos import IngestDocumentationInput
 from documentor.application.use_cases.ingest_documentation import IngestDocumentation
+from documentor.domain.exceptions import DuplicateDocumentError
 from documentor.domain.models.chunk import Embedding
-from documentor.domain.models.document import SourceType
+from documentor.domain.models.document import Document, SourceType
 from documentor.domain.services.document_loader_service import LoadedDocument
 
 
@@ -33,6 +35,7 @@ def uow() -> AsyncMock:
     mock = AsyncMock()
     mock.__aenter__.return_value = mock
     mock.documents.save.side_effect = lambda doc: doc
+    mock.documents.find_by_source.return_value = None
     mock.chunks.save_all.side_effect = lambda chunks: chunks
     return mock
 
@@ -160,3 +163,91 @@ async def test_execute_should_save_document_before_chunks(
     await use_case.execute(input_dto)
 
     assert call_order == ["document", "chunks"]
+
+
+def _make_existing_document(source: str = "https://example.com/docs") -> Document:
+    return Document(
+        id="existing-doc-id",
+        source=source,
+        title="Existing Doc",
+        source_type=SourceType.URL,
+        created_at=datetime(2024, 1, 1, tzinfo=UTC),
+        chunk_count=5,
+    )
+
+
+@pytest.mark.asyncio
+async def test_execute_should_raise_duplicate_error_when_source_exists_and_reject(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+) -> None:
+    uow.documents.find_by_source.return_value = _make_existing_document()
+
+    with pytest.raises(DuplicateDocumentError) as exc_info:
+        await use_case.execute(
+            IngestDocumentationInput(
+                source="https://example.com/docs", on_duplicate="reject"
+            )
+        )
+
+    assert "https://example.com/docs" in str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_execute_should_return_existing_document_when_source_exists_and_skip(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+    loader: AsyncMock,
+) -> None:
+    existing = _make_existing_document()
+    uow.documents.find_by_source.return_value = existing
+
+    result = await use_case.execute(
+        IngestDocumentationInput(
+            source="https://example.com/docs", on_duplicate="skip"
+        )
+    )
+
+    assert result.document.id == "existing-doc-id"
+    assert result.document.title == "Existing Doc"
+    assert result.chunks_created == 0
+    loader.load.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_should_replace_document_when_source_exists_and_replace(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+    loader: AsyncMock,
+) -> None:
+    existing = _make_existing_document()
+    uow.documents.find_by_source.return_value = existing
+
+    result = await use_case.execute(
+        IngestDocumentationInput(
+            source="https://example.com/docs", on_duplicate="replace"
+        )
+    )
+
+    uow.chunks.delete_by_document_id.assert_awaited_once_with("existing-doc-id")
+    uow.documents.delete.assert_awaited_once_with("existing-doc-id")
+    loader.load.assert_awaited_once()
+    assert result.chunks_created == 1
+    assert result.document.title == "Test Doc"
+
+
+@pytest.mark.asyncio
+async def test_execute_should_proceed_normally_when_source_is_new(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+    loader: AsyncMock,
+) -> None:
+    uow.documents.find_by_source.return_value = None
+
+    result = await use_case.execute(
+        IngestDocumentationInput(source="https://example.com/docs")
+    )
+
+    uow.documents.find_by_source.assert_awaited_once_with("https://example.com/docs")
+    loader.load.assert_awaited_once()
+    assert result.chunks_created == 1

@@ -11,3 +11,6 @@ class ChunkRepository(ABC):
     async def search_similar(
         self, embedding: Embedding, top_k: int = 5
     ) -> list[tuple[Chunk, float]]: ...
+
+    @abstractmethod
+    async def delete_by_document_id(self, document_id: str) -> None: ...

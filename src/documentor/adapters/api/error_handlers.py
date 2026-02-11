@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from documentor.domain.exceptions import (
     DocumentLoadError,
     DocumentNotFoundError,
+    DuplicateDocumentError,
     EmbeddingGenerationError,
     InvalidChunkError,
     InvalidDocumentError,
@@ -16,6 +17,7 @@ _EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     InvalidDocumentError: 400,
     InvalidChunkError: 400,
     DocumentNotFoundError: 404,
+    DuplicateDocumentError: 409,
     DocumentLoadError: 502,
     EmbeddingGenerationError: 502,
     LLMGenerationError: 502,

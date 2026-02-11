@@ -1,3 +1,4 @@
+from documentor.domain.exceptions import DuplicateDocumentError
 from documentor.domain.models.chunk import Chunk, ChunkContent, split_text_into_chunks
 from documentor.domain.models.document import Document
 from documentor.domain.services.document_loader_service import DocumentLoaderService
@@ -24,35 +25,51 @@ class IngestDocumentation:
 
     async def execute(self, input: IngestDocumentationInput) -> IngestResultDTO:
         """Ingest documentation from a source: load, chunk, embed, and store."""
-        loaded = await self._loader.load(input.source)
-
-        text_chunks = split_text_into_chunks(loaded.content)
-
-        document = Document.create(
-            source=input.source,
-            title=loaded.title,
-            source_type=loaded.source_type,
-            chunk_count=len(text_chunks),
-        )
-
-        chunks: list[Chunk] = []
-        for position, text in enumerate(text_chunks):
-            token_count = self._embedding_service.count_tokens(text)
-            content = ChunkContent(text=text, token_count=token_count)
-            chunk = Chunk.create(
-                document_id=document.id,
-                content=content,
-                position=position,
-            )
-            chunks.append(chunk)
-
-        texts = [chunk.content.text for chunk in chunks]
-        embeddings = await self._embedding_service.embed_batch(texts)
-
-        for chunk, embedding in zip(chunks, embeddings, strict=True):
-            chunk.set_embedding(embedding)
-
         async with self._uow:
+            existing = await self._uow.documents.find_by_source(input.source)
+
+            if existing is not None:
+                if input.on_duplicate == "reject":
+                    raise DuplicateDocumentError(input.source)
+                if input.on_duplicate == "skip":
+                    return IngestResultDTO(
+                        document=DocumentDTO.from_entity(existing),
+                        chunks_created=0,
+                    )
+                # on_duplicate == "replace"
+                await self._uow.chunks.delete_by_document_id(existing.id)
+                await self._uow.documents.delete(existing.id)
+
+            loaded = await self._loader.load(input.source)
+
+            text_chunks = split_text_into_chunks(loaded.content)
+
+            document = Document.create(
+                source=input.source,
+                title=loaded.title,
+                source_type=loaded.source_type,
+                chunk_count=len(text_chunks),
+            )
+
+            chunks: list[Chunk] = []
+            for position, text in enumerate(text_chunks):
+                token_count = self._embedding_service.count_tokens(text)
+                content = ChunkContent(text=text, token_count=token_count)
+                chunk = Chunk.create(
+                    document_id=document.id,
+                    content=content,
+                    position=position,
+                )
+                chunks.append(chunk)
+
+            texts = [chunk.content.text for chunk in chunks]
+            embeddings = await self._embedding_service.embed_batch(texts)
+
+            # zip pairs each chunk with its corresponding embedding by index,
+            # iterating both lists in lockstep; strict=True ensures they have equal length.
+            for chunk, embedding in zip(chunks, embeddings, strict=True):
+                chunk.set_embedding(embedding)
+
             await self._uow.documents.save(document)
             await self._uow.chunks.save_all(chunks)
             await self._uow.commit()

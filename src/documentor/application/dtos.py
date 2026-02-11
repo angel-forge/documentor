@@ -8,6 +8,7 @@ from documentor.domain.models.document import Document
 @dataclass(frozen=True)
 class IngestDocumentationInput:
     source: str
+    on_duplicate: str = "reject"
 
 
 @dataclass(frozen=True)

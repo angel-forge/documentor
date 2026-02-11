@@ -34,3 +34,9 @@ class EmbeddingGenerationError(DocumentorDomainError):
 
 class LLMGenerationError(DocumentorDomainError):
     pass
+
+
+class DuplicateDocumentError(DocumentorDomainError):
+    def __init__(self, source: str) -> None:
+        self.source = source
+        super().__init__(f"Document already exists for source: {source}")

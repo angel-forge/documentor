@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from documentor.domain.models.document import Document, SourceType
@@ -21,6 +21,19 @@ class PgDocumentRepository(DocumentRepository):
         if model is None:
             return None
         return _to_entity(model)
+
+    async def find_by_source(self, source: str) -> Document | None:
+        stmt = select(DocumentModel).where(DocumentModel.source == source)
+        result = await self._session.execute(stmt)
+        model = result.scalar_one_or_none()
+        if model is None:
+            return None
+        return _to_entity(model)
+
+    async def delete(self, document_id: str) -> None:
+        stmt = delete(DocumentModel).where(DocumentModel.id == document_id)
+        await self._session.execute(stmt)
+        await self._session.flush()
 
     async def find_by_ids(self, document_ids: set[str]) -> dict[str, Document]:
         if not document_ids:

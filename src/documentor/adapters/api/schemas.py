@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -9,6 +10,7 @@ class AskQuestionRequest(BaseModel):
 
 class IngestDocumentRequest(BaseModel):
     source: str
+    on_duplicate: Literal["reject", "skip", "replace"] = "reject"
 
 
 class SourceReferenceResponse(BaseModel):

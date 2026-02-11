@@ -18,13 +18,18 @@ from documentor.application.use_cases.list_documents import ListDocuments
 router = APIRouter()
 
 
-@router.post("/ingest", response_model=IngestDocumentResponse)
+@router.post("/ingest/url", response_model=IngestDocumentResponse)
 async def ingest_document(
     request: IngestDocumentRequest,
     use_case: Annotated[IngestDocumentation, Depends(get_ingest_documentation)],
 ) -> IngestDocumentResponse:
-    """Ingest documentation from a URL or file path."""
-    result = await use_case.execute(IngestDocumentationInput(source=request.source))
+    """Ingest documentation from a URL."""
+    result = await use_case.execute(
+        IngestDocumentationInput(
+            source=request.source,
+            on_duplicate=request.on_duplicate,
+        )
+    )
     doc = result.document
     return IngestDocumentResponse(
         document=DocumentResponse(
