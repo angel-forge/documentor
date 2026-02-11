@@ -7,6 +7,9 @@ from documentor.domain.unit_of_work import UnitOfWork
 from documentor.application.dtos import AnswerDTO, AskQuestionInput
 
 
+MIN_RELEVANCE_SCORE = 0.5
+
+
 class AskQuestion:
     def __init__(
         self,
@@ -26,6 +29,11 @@ class AskQuestion:
 
         async with self._uow:
             results = await self._uow.chunks.search_similar(embedding, top_k=5)
+            results = [
+                (chunk, score)
+                for chunk, score in results
+                if score >= MIN_RELEVANCE_SCORE
+            ]
 
             if not results:
                 return AnswerDTO(

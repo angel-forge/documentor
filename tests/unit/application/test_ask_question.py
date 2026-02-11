@@ -141,3 +141,68 @@ async def test_execute_should_return_no_results_message_when_no_chunks_found(
     assert result.text == "No relevant documentation found for your question."
     assert result.sources == []
     llm_service.generate.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_should_discard_low_relevance_chunks_when_below_threshold(
+    sample_chunk: Chunk,
+    sample_document: Document,
+    embedding_service: AsyncMock,
+    llm_service: AsyncMock,
+) -> None:
+    high_chunk = Chunk.create(
+        document_id="doc-1",
+        content=ChunkContent(text="Relevant content.", token_count=3),
+        position=0,
+    )
+    low_chunk = Chunk.create(
+        document_id="doc-1",
+        content=ChunkContent(text="Irrelevant noise.", token_count=3),
+        position=1,
+    )
+
+    uow = AsyncMock()
+    uow.__aenter__.return_value = uow
+    uow.chunks.search_similar.return_value = [(high_chunk, 0.8), (low_chunk, 0.3)]
+    uow.documents.find_by_ids.return_value = {"doc-1": sample_document}
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+    )
+    input_dto = AskQuestionInput(question_text="What is Python?")
+
+    result = await use_case.execute(input_dto)
+
+    assert len(result.sources) == 1
+    assert result.sources[0].relevance_score == 0.8
+
+
+@pytest.mark.asyncio
+async def test_execute_should_return_no_results_when_all_chunks_below_threshold(
+    embedding_service: AsyncMock,
+    llm_service: AsyncMock,
+) -> None:
+    low_chunk = Chunk.create(
+        document_id="doc-1",
+        content=ChunkContent(text="Irrelevant noise.", token_count=3),
+        position=0,
+    )
+
+    uow = AsyncMock()
+    uow.__aenter__.return_value = uow
+    uow.chunks.search_similar.return_value = [(low_chunk, 0.2)]
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+    )
+    input_dto = AskQuestionInput(question_text="What is Python?")
+
+    result = await use_case.execute(input_dto)
+
+    assert result.text == "No relevant documentation found for your question."
+    assert result.sources == []
+    llm_service.generate.assert_not_awaited()
