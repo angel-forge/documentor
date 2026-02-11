@@ -1,4 +1,4 @@
-from documentor.domain.exceptions import DuplicateDocumentError
+from documentor.domain.exceptions import DuplicateDocumentError, InvalidDocumentError
 from documentor.domain.models.chunk import Chunk, ChunkContent, split_text_into_chunks
 from documentor.domain.models.document import Document
 from documentor.domain.services.document_loader_service import DocumentLoaderService
@@ -43,6 +43,11 @@ class IngestDocumentation:
             loaded = await self._loader.load(input.source)
 
             text_chunks = split_text_into_chunks(loaded.content)
+
+            if not text_chunks:
+                raise InvalidDocumentError(
+                    f"No extractable content from source: {input.source}"
+                )
 
             document = Document.create(
                 source=input.source,

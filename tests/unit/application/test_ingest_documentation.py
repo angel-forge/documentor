@@ -5,7 +5,7 @@ import pytest
 
 from documentor.application.dtos import IngestDocumentationInput
 from documentor.application.use_cases.ingest_documentation import IngestDocumentation
-from documentor.domain.exceptions import DuplicateDocumentError
+from documentor.domain.exceptions import DuplicateDocumentError, InvalidDocumentError
 from documentor.domain.models.chunk import Embedding
 from documentor.domain.models.document import Document, SourceType
 from documentor.domain.services.document_loader_service import LoadedDocument
@@ -251,3 +251,43 @@ async def test_execute_should_proceed_normally_when_source_is_new(
     uow.documents.find_by_source.assert_awaited_once_with("https://example.com/docs")
     loader.load.assert_awaited_once()
     assert result.chunks_created == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_should_raise_error_when_loaded_content_is_empty(
+    use_case: IngestDocumentation,
+    loader: AsyncMock,
+    uow: AsyncMock,
+) -> None:
+    loader.load.return_value = LoadedDocument(
+        content="",
+        title="Empty Doc",
+        source_type=SourceType.URL,
+    )
+
+    with pytest.raises(InvalidDocumentError, match="No extractable content"):
+        await use_case.execute(
+            IngestDocumentationInput(source="https://example.com/empty")
+        )
+
+    uow.documents.save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_should_raise_error_when_loaded_content_is_whitespace(
+    use_case: IngestDocumentation,
+    loader: AsyncMock,
+    uow: AsyncMock,
+) -> None:
+    loader.load.return_value = LoadedDocument(
+        content="   \n\t  ",
+        title="Whitespace Doc",
+        source_type=SourceType.URL,
+    )
+
+    with pytest.raises(InvalidDocumentError, match="No extractable content"):
+        await use_case.execute(
+            IngestDocumentationInput(source="https://example.com/blank")
+        )
+
+    uow.documents.save.assert_not_awaited()
