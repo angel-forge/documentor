@@ -1,4 +1,4 @@
-from documentor.domain.models.chunk import Chunk, ChunkContent
+from documentor.domain.models.chunk import Chunk, ChunkContent, split_text_into_chunks
 from documentor.domain.models.document import Document
 from documentor.domain.services.document_loader_service import DocumentLoaderService
 from documentor.domain.services.embedding_service import EmbeddingService
@@ -26,7 +26,7 @@ class IngestDocumentation:
         """Ingest documentation from a source: load, chunk, embed, and store."""
         loaded = await self._loader.load(input.source)
 
-        text_chunks = self._split_into_chunks(loaded.content)
+        text_chunks = split_text_into_chunks(loaded.content)
 
         document = Document.create(
             source=input.source,
@@ -61,20 +61,3 @@ class IngestDocumentation:
             document=DocumentDTO.from_entity(document),
             chunks_created=len(chunks),
         )
-
-    def _split_into_chunks(
-        self, text: str, chunk_size: int = 500, overlap: int = 50
-    ) -> list[str]:
-        words = text.split()
-        if not words:
-            return []
-
-        chunks: list[str] = []
-        start = 0
-        while start < len(words):
-            end = start + chunk_size
-            chunk_text = " ".join(words[start:end])
-            chunks.append(chunk_text)
-            start += chunk_size - overlap
-
-        return chunks

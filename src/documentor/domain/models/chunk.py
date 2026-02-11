@@ -59,3 +59,22 @@ class Chunk:
 
     def has_embedding(self) -> bool:
         return self.embedding is not None
+
+
+def split_text_into_chunks(
+    text: str, chunk_size: int = 500, overlap: int = 50
+) -> list[str]:
+    """Split text into overlapping chunks by word boundaries."""
+    words = text.split()
+    if not words:
+        return []
+
+    chunks: list[str] = []
+    start = 0
+    while start < len(words):
+        end = start + chunk_size
+        chunk_text = " ".join(words[start:end])
+        chunks.append(chunk_text)
+        start += chunk_size - overlap
+
+    return chunks
