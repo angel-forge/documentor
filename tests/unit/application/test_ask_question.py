@@ -5,8 +5,8 @@ import pytest
 from documentor.application.dtos import AskQuestionInput
 from documentor.application.use_cases.ask_question import AskQuestion
 from documentor.domain.exceptions import InvalidQuestionError
-from documentor.domain.models.answer import Answer, SourceReference
 from documentor.domain.models.chunk import Chunk, ChunkContent, Embedding
+from documentor.domain.models.document import Document, SourceType
 
 
 @pytest.fixture
@@ -18,6 +18,16 @@ def sample_chunk() -> Chunk:
     )
     chunk.set_embedding(Embedding.from_list([0.1, 0.2, 0.3]))
     return chunk
+
+
+@pytest.fixture
+def sample_document() -> Document:
+    return Document.create(
+        source="https://docs.python.org",
+        title="Python Docs",
+        source_type=SourceType.URL,
+        chunk_count=1,
+    )
 
 
 @pytest.fixture
@@ -35,19 +45,16 @@ def chunk_repository(sample_chunk: Chunk) -> AsyncMock:
 
 
 @pytest.fixture
-def llm_service(sample_chunk: Chunk) -> AsyncMock:
+def llm_service() -> AsyncMock:
     mock = AsyncMock()
-    mock.generate.return_value = Answer(
-        text="Python is a popular programming language.",
-        sources=(
-            SourceReference(
-                document_title="Python Docs",
-                chunk_text="Python is a programming language.",
-                relevance_score=0.95,
-                chunk_id=sample_chunk.id,
-            ),
-        ),
-    )
+    mock.generate.return_value = "Python is a popular programming language."
+    return mock
+
+
+@pytest.fixture
+def document_repository(sample_document: Document) -> AsyncMock:
+    mock = AsyncMock()
+    mock.find_by_id.return_value = sample_document
     return mock
 
 
@@ -56,11 +63,13 @@ def use_case(
     embedding_service: AsyncMock,
     chunk_repository: AsyncMock,
     llm_service: AsyncMock,
+    document_repository: AsyncMock,
 ) -> AskQuestion:
     return AskQuestion(
         embedding_service=embedding_service,
         chunk_repository=chunk_repository,
         llm_service=llm_service,
+        document_repository=document_repository,
     )
 
 
@@ -103,3 +112,16 @@ async def test_execute_should_raise_error_when_question_is_empty(
 
     with pytest.raises(InvalidQuestionError):
         await use_case.execute(input_dto)
+
+
+@pytest.mark.asyncio
+async def test_execute_should_lookup_document_title_when_building_sources(
+    use_case: AskQuestion,
+    document_repository: AsyncMock,
+    sample_chunk: Chunk,
+) -> None:
+    input_dto = AskQuestionInput(question_text="What is Python?")
+
+    await use_case.execute(input_dto)
+
+    document_repository.find_by_id.assert_awaited_once_with(sample_chunk.document_id)

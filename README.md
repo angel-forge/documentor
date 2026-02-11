@@ -37,6 +37,23 @@ docker compose exec db psql -U documentor -d documentor -c '\dt'
 docker compose exec db psql -U documentor -d documentor -c '\dx'
 ```
 
+## Servidor de desarrollo
+
+```bash
+make dev
+```
+
+Inicia el servidor en `http://localhost:8000` con hot reload.
+
+### Endpoints disponibles
+
+| Método | Ruta         | Descripción                        |
+|--------|--------------|------------------------------------|
+| GET    | `/health`    | Health check                       |
+| POST   | `/ingest`    | Ingestar documentación (URL/path)  |
+| GET    | `/documents` | Listar documentos ingestados       |
+| POST   | `/ask`       | Preguntar sobre la documentación   |
+
 ## Conexión desde TablePlus
 
 ```
@@ -53,6 +70,7 @@ postgresql://documentor:documentor@localhost:5432/documentor
 | `make reset-db`  | Destruye la BD, recrea y migra desde cero         |
 | `make lint`      | Ejecuta el linter (ruff check)                    |
 | `make format`    | Formatea el código (ruff format)                  |
+| `make dev`       | Inicia el servidor de desarrollo con hot reload    |
 | `make test`      | Ejecuta tests unitarios                           |
 | `make test-int`  | Ejecuta tests de integración (necesita Docker)    |
 | `make test-all`  | Ejecuta todos los tests con cobertura             |
@@ -75,7 +93,7 @@ src/documentor/
 ├── domain/            # Entidades, Value Objects, puertos (interfaces)
 ├── application/       # Casos de uso y DTOs
 ├── infrastructure/    # Implementaciones: PostgreSQL, OpenAI, Anthropic
-└── adapters/          # API FastAPI (próximamente)
+└── adapters/          # API FastAPI
 ```
 
 **Reglas de dependencia:** `domain` no importa de nadie. `application` solo de `domain`. `infrastructure` implementa los puertos de `domain`. `adapters` conecta todo.

@@ -1,7 +1,6 @@
 from anthropic import AsyncAnthropic
 
 from documentor.domain.exceptions import LLMGenerationError
-from documentor.domain.models.answer import Answer, SourceReference
 from documentor.domain.models.chunk import Chunk
 from documentor.domain.models.question import Question
 from documentor.domain.services.llm_service import LLMService
@@ -12,7 +11,7 @@ class AnthropicLLMService(LLMService):
         self._client = AsyncAnthropic(api_key=api_key)
         self._model = model
 
-    async def generate(self, question: Question, context_chunks: list[Chunk]) -> Answer:
+    async def generate(self, question: Question, context_chunks: list[Chunk]) -> str:
         try:
             system_prompt = _build_system_prompt(context_chunks)
             response = await self._client.messages.create(
@@ -21,9 +20,7 @@ class AnthropicLLMService(LLMService):
                 system=system_prompt,
                 messages=[{"role": "user", "content": question.text}],
             )
-            text = response.content[0].text
-            sources = _build_sources(context_chunks)
-            return Answer(text=text, sources=tuple(sources))
+            return response.content[0].text
         except LLMGenerationError:
             raise
         except Exception as e:
@@ -44,18 +41,3 @@ def _build_system_prompt(chunks: list[Chunk]) -> str:
         "answer. If the answer cannot be found in the sources, say so clearly.\n\n"
         f"--- CONTEXT ---\n{context}\n--- END CONTEXT ---"
     )
-
-
-def _build_sources(chunks: list[Chunk]) -> list[SourceReference]:
-    sources: list[SourceReference] = []
-    for i, chunk in enumerate(chunks):
-        score = max(0.0, 1.0 - (i * 0.1))
-        sources.append(
-            SourceReference(
-                document_title=chunk.document_id,
-                chunk_text=chunk.content.text,
-                relevance_score=score,
-                chunk_id=chunk.id,
-            )
-        )
-    return sources

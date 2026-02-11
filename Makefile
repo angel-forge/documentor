@@ -1,4 +1,4 @@
-.PHONY: up down migrate reset-db lint format test test-int test-all
+.PHONY: up down migrate reset-db lint format test test-int test-all dev openapi
 
 ## ---- Docker ----
 
@@ -38,6 +38,14 @@ test-int: ## Run integration tests (needs Docker)
 
 test-all: ## Run all tests with coverage
 	uv run pytest --cov=src/documentor -v
+
+## ---- Server ----
+
+dev: ## Start dev server with hot reload
+	uv run uvicorn src.documentor.adapters.api.main:create_app --factory --reload
+
+openapi: ## Generate openapi.json from FastAPI app
+	uv run python -c "import json; from documentor.adapters.api.main import create_app; spec = create_app().openapi(); spec['servers'] = [{'url': 'http://localhost:8000', 'description': 'Local dev server'}]; print(json.dumps(spec, indent=2))" > openapi.json
 
 ## ---- Help ----
 

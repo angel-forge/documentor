@@ -1,7 +1,6 @@
 from openai import AsyncOpenAI
 
 from documentor.domain.exceptions import LLMGenerationError
-from documentor.domain.models.answer import Answer, SourceReference
 from documentor.domain.models.chunk import Chunk
 from documentor.domain.models.question import Question
 from documentor.domain.services.llm_service import LLMService
@@ -12,7 +11,7 @@ class OpenAILLMService(LLMService):
         self._client = AsyncOpenAI(api_key=api_key)
         self._model = model
 
-    async def generate(self, question: Question, context_chunks: list[Chunk]) -> Answer:
+    async def generate(self, question: Question, context_chunks: list[Chunk]) -> str:
         try:
             system_prompt = _build_system_prompt(context_chunks)
             response = await self._client.chat.completions.create(
@@ -25,8 +24,7 @@ class OpenAILLMService(LLMService):
             text = response.choices[0].message.content or ""
             if not text.strip():
                 raise LLMGenerationError("LLM returned empty response")
-            sources = _build_sources(context_chunks)
-            return Answer(text=text, sources=tuple(sources))
+            return text
         except LLMGenerationError:
             raise
         except Exception as e:
@@ -47,18 +45,3 @@ def _build_system_prompt(chunks: list[Chunk]) -> str:
         "answer. If the answer cannot be found in the sources, say so clearly.\n\n"
         f"--- CONTEXT ---\n{context}\n--- END CONTEXT ---"
     )
-
-
-def _build_sources(chunks: list[Chunk]) -> list[SourceReference]:
-    sources: list[SourceReference] = []
-    for i, chunk in enumerate(chunks):
-        score = max(0.0, 1.0 - (i * 0.1))
-        sources.append(
-            SourceReference(
-                document_title=chunk.document_id,
-                chunk_text=chunk.content.text,
-                relevance_score=score,
-                chunk_id=chunk.id,
-            )
-        )
-    return sources

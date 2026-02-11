@@ -55,8 +55,8 @@ class IngestDocumentation:
         for chunk, embedding in zip(chunks, embeddings, strict=True):
             chunk.set_embedding(embedding)
 
-        await self._chunk_repository.save_all(chunks)
         await self._document_repository.save(document)
+        await self._chunk_repository.save_all(chunks)
 
         return IngestResultDTO(
             document=DocumentDTO.from_entity(document),
