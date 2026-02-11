@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 
+from documentor.domain.models.answer import Answer, SourceReference
 from documentor.domain.models.document import Document
 
 
@@ -21,11 +22,27 @@ class SourceReferenceDTO:
     relevance_score: float
     chunk_id: str
 
+    @staticmethod
+    def from_domain(source: SourceReference) -> "SourceReferenceDTO":
+        return SourceReferenceDTO(
+            document_title=source.document_title,
+            chunk_text=source.chunk_text,
+            relevance_score=source.relevance_score,
+            chunk_id=source.chunk_id,
+        )
+
 
 @dataclass(frozen=True)
 class AnswerDTO:
     text: str
     sources: list[SourceReferenceDTO]
+
+    @staticmethod
+    def from_domain(answer: Answer) -> "AnswerDTO":
+        return AnswerDTO(
+            text=answer.text,
+            sources=[SourceReferenceDTO.from_domain(s) for s in answer.sources],
+        )
 
 
 @dataclass(frozen=True)

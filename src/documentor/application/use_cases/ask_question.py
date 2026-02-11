@@ -1,9 +1,10 @@
+from documentor.domain.models.answer import Answer, SourceReference
 from documentor.domain.models.question import Question
 from documentor.domain.services.embedding_service import EmbeddingService
 from documentor.domain.services.llm_service import LLMService
 from documentor.domain.unit_of_work import UnitOfWork
 
-from documentor.application.dtos import AnswerDTO, AskQuestionInput, SourceReferenceDTO
+from documentor.application.dtos import AnswerDTO, AskQuestionInput
 
 
 class AskQuestion:
@@ -42,14 +43,17 @@ class AskQuestion:
                 for doc_id in document_ids
             }
 
-        sources = [
-            SourceReferenceDTO(
-                document_title=document_titles[chunk.document_id],
-                chunk_text=chunk.content.text,
-                relevance_score=score,
-                chunk_id=chunk.id,
-            )
-            for chunk, score in results
-        ]
+        answer = Answer(
+            text=text,
+            sources=tuple(
+                SourceReference(
+                    document_title=document_titles[chunk.document_id],
+                    chunk_text=chunk.content.text,
+                    relevance_score=score,
+                    chunk_id=chunk.id,
+                )
+                for chunk, score in results
+            ),
+        )
 
-        return AnswerDTO(text=text, sources=sources)
+        return AnswerDTO.from_domain(answer)
