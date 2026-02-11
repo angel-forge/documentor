@@ -26,6 +26,12 @@ class AskQuestion:
         async with self._uow:
             results = await self._uow.chunks.search_similar(embedding, top_k=5)
 
+            if not results:
+                return AnswerDTO(
+                    text="No relevant documentation found for your question.",
+                    sources=[],
+                )
+
             chunks = [chunk for chunk, _score in results]
             text = await self._llm_service.generate(question, chunks)
 

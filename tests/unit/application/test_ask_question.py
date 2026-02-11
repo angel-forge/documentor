@@ -118,3 +118,26 @@ async def test_execute_should_batch_lookup_document_titles_when_building_sources
     await use_case.execute(input_dto)
 
     uow.documents.find_by_ids.assert_awaited_once_with({sample_chunk.document_id})
+
+
+@pytest.mark.asyncio
+async def test_execute_should_return_no_results_message_when_no_chunks_found(
+    embedding_service: AsyncMock,
+    llm_service: AsyncMock,
+) -> None:
+    uow = AsyncMock()
+    uow.__aenter__.return_value = uow
+    uow.chunks.search_similar.return_value = []
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+    )
+    input_dto = AskQuestionInput(question_text="What is Python?")
+
+    result = await use_case.execute(input_dto)
+
+    assert result.text == "No relevant documentation found for your question."
+    assert result.sources == []
+    llm_service.generate.assert_not_awaited()
