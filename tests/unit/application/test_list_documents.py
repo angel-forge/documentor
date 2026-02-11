@@ -8,19 +8,21 @@ from documentor.domain.models.document import Document, SourceType
 
 
 @pytest.fixture
-def document_repository() -> AsyncMock:
-    return AsyncMock()
+def uow() -> AsyncMock:
+    mock = AsyncMock()
+    mock.__aenter__.return_value = mock
+    return mock
 
 
 @pytest.fixture
-def use_case(document_repository: AsyncMock) -> ListDocuments:
-    return ListDocuments(document_repository=document_repository)
+def use_case(uow: AsyncMock) -> ListDocuments:
+    return ListDocuments(uow=uow)
 
 
 @pytest.mark.asyncio
 async def test_execute_should_return_document_list_when_documents_exist(
     use_case: ListDocuments,
-    document_repository: AsyncMock,
+    uow: AsyncMock,
 ) -> None:
     documents = [
         Document(
@@ -40,7 +42,7 @@ async def test_execute_should_return_document_list_when_documents_exist(
             chunk_count=5,
         ),
     ]
-    document_repository.list_all.return_value = documents
+    uow.documents.list_all.return_value = documents
 
     result = await use_case.execute()
 
@@ -55,11 +57,11 @@ async def test_execute_should_return_document_list_when_documents_exist(
 @pytest.mark.asyncio
 async def test_execute_should_return_empty_list_when_no_documents(
     use_case: ListDocuments,
-    document_repository: AsyncMock,
+    uow: AsyncMock,
 ) -> None:
-    document_repository.list_all.return_value = []
+    uow.documents.list_all.return_value = []
 
     result = await use_case.execute()
 
     assert result == []
-    document_repository.list_all.assert_awaited_once()
+    uow.documents.list_all.assert_awaited_once()

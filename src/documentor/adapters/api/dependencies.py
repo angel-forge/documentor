@@ -18,10 +18,7 @@ from documentor.infrastructure.external.openai_embedding_service import (
     OpenAIEmbeddingService,
 )
 from documentor.infrastructure.external.openai_llm_service import OpenAILLMService
-from documentor.infrastructure.persistence.pg_chunk_repository import PgChunkRepository
-from documentor.infrastructure.persistence.pg_document_repository import (
-    PgDocumentRepository,
-)
+from documentor.infrastructure.persistence.pg_unit_of_work import PgUnitOfWork
 
 
 @lru_cache
@@ -55,8 +52,7 @@ def get_ingest_documentation(
             api_key=settings.openai_api_key,
             model=settings.embedding_model,
         ),
-        chunk_repository=PgChunkRepository(session_factory),
-        document_repository=PgDocumentRepository(session_factory),
+        uow=PgUnitOfWork(session_factory),
     )
 
 
@@ -82,9 +78,8 @@ def get_ask_question(
             api_key=settings.openai_api_key,
             model=settings.embedding_model,
         ),
-        chunk_repository=PgChunkRepository(session_factory),
         llm_service=llm_service,
-        document_repository=PgDocumentRepository(session_factory),
+        uow=PgUnitOfWork(session_factory),
     )
 
 
@@ -94,5 +89,5 @@ def get_list_documents(
     ],
 ) -> ListDocuments:
     return ListDocuments(
-        document_repository=PgDocumentRepository(session_factory),
+        uow=PgUnitOfWork(session_factory),
     )

@@ -27,10 +27,17 @@ def _make_embedding(weight: float) -> Embedding:
 
 
 @pytest_asyncio.fixture
-async def document(
+async def session(
     session_factory: async_sessionmaker[AsyncSession],
-) -> Document:
-    repo = PgDocumentRepository(session_factory)
+) -> AsyncSession:
+    session = session_factory()
+    yield session
+    await session.close()
+
+
+@pytest_asyncio.fixture
+async def document(session: AsyncSession) -> Document:
+    repo = PgDocumentRepository(session)
     doc = Document.create(
         source="https://example.com/test",
         title="Test Doc",
@@ -38,20 +45,20 @@ async def document(
         chunk_count=3,
     )
     await repo.save(doc)
+    await session.commit()
     return doc
 
 
 @pytest.fixture
-def repository(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> PgChunkRepository:
-    return PgChunkRepository(session_factory)
+def repository(session: AsyncSession) -> PgChunkRepository:
+    return PgChunkRepository(session)
 
 
 @pytest.mark.asyncio
 async def test_save_all_should_persist_chunks_with_embeddings(
     repository: PgChunkRepository,
     document: Document,
+    session: AsyncSession,
 ) -> None:
     chunks = [
         Chunk(
@@ -65,6 +72,7 @@ async def test_save_all_should_persist_chunks_with_embeddings(
     ]
 
     saved = await repository.save_all(chunks)
+    await session.commit()
     assert len(saved) == 3
 
 
@@ -72,6 +80,7 @@ async def test_save_all_should_persist_chunks_with_embeddings(
 async def test_search_similar_should_return_closest_chunks_ordered(
     repository: PgChunkRepository,
     document: Document,
+    session: AsyncSession,
 ) -> None:
     chunks = [
         Chunk(
@@ -97,6 +106,7 @@ async def test_search_similar_should_return_closest_chunks_ordered(
         ),
     ]
     await repository.save_all(chunks)
+    await session.commit()
 
     query_embedding = _make_embedding(1.0)
     results = await repository.search_similar(query_embedding, top_k=3)
@@ -115,6 +125,7 @@ async def test_search_similar_should_return_closest_chunks_ordered(
 async def test_search_similar_should_respect_top_k(
     repository: PgChunkRepository,
     document: Document,
+    session: AsyncSession,
 ) -> None:
     chunks = [
         Chunk(
@@ -127,6 +138,7 @@ async def test_search_similar_should_respect_top_k(
         for i in range(5)
     ]
     await repository.save_all(chunks)
+    await session.commit()
 
     query_embedding = _make_embedding(1.0)
     results = await repository.search_similar(query_embedding, top_k=2)

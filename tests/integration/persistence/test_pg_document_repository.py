@@ -1,4 +1,5 @@
 import pytest
+import pytest_asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from documentor.domain.models.document import Document, SourceType
@@ -7,16 +8,24 @@ from documentor.infrastructure.persistence.pg_document_repository import (
 )
 
 
-@pytest.fixture
-def repository(
+@pytest_asyncio.fixture
+async def session(
     session_factory: async_sessionmaker[AsyncSession],
-) -> PgDocumentRepository:
-    return PgDocumentRepository(session_factory)
+) -> AsyncSession:
+    session = session_factory()
+    yield session
+    await session.close()
+
+
+@pytest.fixture
+def repository(session: AsyncSession) -> PgDocumentRepository:
+    return PgDocumentRepository(session)
 
 
 @pytest.mark.asyncio
 async def test_save_should_persist_document_when_valid(
     repository: PgDocumentRepository,
+    session: AsyncSession,
 ) -> None:
     document = Document.create(
         source="https://example.com/docs",
@@ -26,6 +35,7 @@ async def test_save_should_persist_document_when_valid(
     )
 
     saved = await repository.save(document)
+    await session.commit()
 
     assert saved.id == document.id
     found = await repository.find_by_id(document.id)
@@ -48,6 +58,7 @@ async def test_find_by_id_should_return_none_when_not_found(
 @pytest.mark.asyncio
 async def test_list_all_should_return_all_saved_documents(
     repository: PgDocumentRepository,
+    session: AsyncSession,
 ) -> None:
     doc1 = Document.create(
         source="https://example.com/a",
@@ -62,6 +73,7 @@ async def test_list_all_should_return_all_saved_documents(
 
     await repository.save(doc1)
     await repository.save(doc2)
+    await session.commit()
 
     documents = await repository.list_all()
     ids = {d.id for d in documents}

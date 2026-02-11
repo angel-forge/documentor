@@ -1,9 +1,8 @@
 from documentor.domain.models.chunk import Chunk, ChunkContent
 from documentor.domain.models.document import Document
-from documentor.domain.repositories.chunk_repository import ChunkRepository
-from documentor.domain.repositories.document_repository import DocumentRepository
 from documentor.domain.services.document_loader_service import DocumentLoaderService
 from documentor.domain.services.embedding_service import EmbeddingService
+from documentor.domain.unit_of_work import UnitOfWork
 
 from documentor.application.dtos import (
     DocumentDTO,
@@ -17,13 +16,11 @@ class IngestDocumentation:
         self,
         loader: DocumentLoaderService,
         embedding_service: EmbeddingService,
-        chunk_repository: ChunkRepository,
-        document_repository: DocumentRepository,
+        uow: UnitOfWork,
     ) -> None:
         self._loader = loader
         self._embedding_service = embedding_service
-        self._chunk_repository = chunk_repository
-        self._document_repository = document_repository
+        self._uow = uow
 
     async def execute(self, input: IngestDocumentationInput) -> IngestResultDTO:
         """Ingest documentation from a source: load, chunk, embed, and store."""
@@ -55,8 +52,10 @@ class IngestDocumentation:
         for chunk, embedding in zip(chunks, embeddings, strict=True):
             chunk.set_embedding(embedding)
 
-        await self._document_repository.save(document)
-        await self._chunk_repository.save_all(chunks)
+        async with self._uow:
+            await self._uow.documents.save(document)
+            await self._uow.chunks.save_all(chunks)
+            await self._uow.commit()
 
         return IngestResultDTO(
             document=DocumentDTO.from_entity(document),

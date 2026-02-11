@@ -1,5 +1,5 @@
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from documentor.domain.models.chunk import Chunk, ChunkContent, Embedding
 from documentor.domain.repositories.chunk_repository import ChunkRepository
@@ -7,31 +7,29 @@ from documentor.infrastructure.persistence.orm_models import ChunkModel
 
 
 class PgChunkRepository(ChunkRepository):
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
-        self._session_factory = session_factory
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
 
     async def save_all(self, chunks: list[Chunk]) -> list[Chunk]:
-        async with self._session_factory() as session:
-            models = [_to_model(chunk) for chunk in chunks]
-            session.add_all(models)
-            await session.commit()
-            return chunks
+        models = [_to_model(chunk) for chunk in chunks]
+        self._session.add_all(models)
+        await self._session.flush()
+        return chunks
 
     async def search_similar(
         self, embedding: Embedding, top_k: int = 5
     ) -> list[tuple[Chunk, float]]:
         vector = list(embedding.vector)
-        async with self._session_factory() as session:
-            distance_expr = ChunkModel.embedding.cosine_distance(vector)
-            stmt = (
-                select(ChunkModel, distance_expr.label("distance"))
-                .where(ChunkModel.embedding.isnot(None))
-                .order_by(distance_expr)
-                .limit(top_k)
-            )
-            result = await session.execute(stmt)
-            rows = result.all()
-            return [(_to_entity(row[0]), 1.0 - float(row[1])) for row in rows]
+        distance_expr = ChunkModel.embedding.cosine_distance(vector)
+        stmt = (
+            select(ChunkModel, distance_expr.label("distance"))
+            .where(ChunkModel.embedding.isnot(None))
+            .order_by(distance_expr)
+            .limit(top_k)
+        )
+        result = await self._session.execute(stmt)
+        rows = result.all()
+        return [(_to_entity(row[0]), 1.0 - float(row[1])) for row in rows]
 
 
 def _to_model(chunk: Chunk) -> ChunkModel:

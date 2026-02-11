@@ -28,16 +28,11 @@ def embedding_service() -> AsyncMock:
 
 
 @pytest.fixture
-def chunk_repository() -> AsyncMock:
+def uow() -> AsyncMock:
     mock = AsyncMock()
-    mock.save_all.side_effect = lambda chunks: chunks
-    return mock
-
-
-@pytest.fixture
-def document_repository() -> AsyncMock:
-    mock = AsyncMock()
-    mock.save.side_effect = lambda doc: doc
+    mock.__aenter__.return_value = mock
+    mock.documents.save.side_effect = lambda doc: doc
+    mock.chunks.save_all.side_effect = lambda chunks: chunks
     return mock
 
 
@@ -45,14 +40,12 @@ def document_repository() -> AsyncMock:
 def use_case(
     loader: AsyncMock,
     embedding_service: AsyncMock,
-    chunk_repository: AsyncMock,
-    document_repository: AsyncMock,
+    uow: AsyncMock,
 ) -> IngestDocumentation:
     return IngestDocumentation(
         loader=loader,
         embedding_service=embedding_service,
-        chunk_repository=chunk_repository,
-        document_repository=document_repository,
+        uow=uow,
     )
 
 
@@ -91,20 +84,19 @@ async def test_execute_should_call_loader_and_embedding_service_when_ingesting(
 @pytest.mark.asyncio
 async def test_execute_should_save_document_and_chunks_when_ingesting(
     use_case: IngestDocumentation,
-    chunk_repository: AsyncMock,
-    document_repository: AsyncMock,
+    uow: AsyncMock,
 ) -> None:
     input_dto = IngestDocumentationInput(source="https://example.com/docs")
 
     await use_case.execute(input_dto)
 
-    chunk_repository.save_all.assert_awaited_once()
-    saved_chunks = chunk_repository.save_all.call_args[0][0]
+    uow.chunks.save_all.assert_awaited_once()
+    saved_chunks = uow.chunks.save_all.call_args[0][0]
     assert len(saved_chunks) == 1
     assert saved_chunks[0].has_embedding()
 
-    document_repository.save.assert_awaited_once()
-    saved_doc = document_repository.save.call_args[0][0]
+    uow.documents.save.assert_awaited_once()
+    saved_doc = uow.documents.save.call_args[0][0]
     assert saved_doc.title == "Test Doc"
     assert saved_doc.chunk_count == 1
 
@@ -113,15 +105,13 @@ async def test_execute_should_save_document_and_chunks_when_ingesting(
 async def test_execute_should_create_multiple_chunks_for_large_content(
     loader: AsyncMock,
     embedding_service: AsyncMock,
-    chunk_repository: AsyncMock,
-    document_repository: AsyncMock,
+    uow: AsyncMock,
 ) -> None:
     loader.load.return_value = LoadedDocument(
         content="word " * 1000,
         title="Large Doc",
         source_type=SourceType.URL,
     )
-    # Return enough embeddings for the expected chunks
     embedding_service.embed_batch.side_effect = lambda texts: [
         Embedding.from_list([0.1, 0.2, 0.3]) for _ in texts
     ]
@@ -129,8 +119,7 @@ async def test_execute_should_create_multiple_chunks_for_large_content(
     use_case = IngestDocumentation(
         loader=loader,
         embedding_service=embedding_service,
-        chunk_repository=chunk_repository,
-        document_repository=document_repository,
+        uow=uow,
     )
 
     result = await use_case.execute(
@@ -139,3 +128,18 @@ async def test_execute_should_create_multiple_chunks_for_large_content(
 
     assert result.chunks_created > 1
     assert result.document.chunk_count == result.chunks_created
+
+
+@pytest.mark.asyncio
+async def test_execute_should_save_document_before_chunks(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+) -> None:
+    call_order: list[str] = []
+    uow.documents.save.side_effect = lambda doc: call_order.append("document")
+    uow.chunks.save_all.side_effect = lambda chunks: call_order.append("chunks")
+
+    input_dto = IngestDocumentationInput(source="https://example.com/docs")
+    await use_case.execute(input_dto)
+
+    assert call_order == ["document", "chunks"]

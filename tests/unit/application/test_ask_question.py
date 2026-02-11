@@ -38,13 +38,6 @@ def embedding_service() -> AsyncMock:
 
 
 @pytest.fixture
-def chunk_repository(sample_chunk: Chunk) -> AsyncMock:
-    mock = AsyncMock()
-    mock.search_similar.return_value = [(sample_chunk, 0.95)]
-    return mock
-
-
-@pytest.fixture
 def llm_service() -> AsyncMock:
     mock = AsyncMock()
     mock.generate.return_value = "Python is a popular programming language."
@@ -52,24 +45,24 @@ def llm_service() -> AsyncMock:
 
 
 @pytest.fixture
-def document_repository(sample_document: Document) -> AsyncMock:
+def uow(sample_chunk: Chunk, sample_document: Document) -> AsyncMock:
     mock = AsyncMock()
-    mock.find_by_id.return_value = sample_document
+    mock.__aenter__.return_value = mock
+    mock.chunks.search_similar.return_value = [(sample_chunk, 0.95)]
+    mock.documents.find_by_id.return_value = sample_document
     return mock
 
 
 @pytest.fixture
 def use_case(
     embedding_service: AsyncMock,
-    chunk_repository: AsyncMock,
     llm_service: AsyncMock,
-    document_repository: AsyncMock,
+    uow: AsyncMock,
 ) -> AskQuestion:
     return AskQuestion(
         embedding_service=embedding_service,
-        chunk_repository=chunk_repository,
         llm_service=llm_service,
-        document_repository=document_repository,
+        uow=uow,
     )
 
 
@@ -91,15 +84,15 @@ async def test_execute_should_return_answer_with_sources_when_relevant_chunks_ex
 async def test_execute_should_embed_question_and_search_chunks_when_asking(
     use_case: AskQuestion,
     embedding_service: AsyncMock,
-    chunk_repository: AsyncMock,
+    uow: AsyncMock,
 ) -> None:
     input_dto = AskQuestionInput(question_text="What is Python?")
 
     await use_case.execute(input_dto)
 
     embedding_service.embed.assert_awaited_once_with("What is Python?")
-    chunk_repository.search_similar.assert_awaited_once()
-    call_args = chunk_repository.search_similar.call_args
+    uow.chunks.search_similar.assert_awaited_once()
+    call_args = uow.chunks.search_similar.call_args
     assert call_args[0][0] == Embedding.from_list([0.1, 0.2, 0.3])
     assert call_args[1]["top_k"] == 5
 
@@ -117,11 +110,11 @@ async def test_execute_should_raise_error_when_question_is_empty(
 @pytest.mark.asyncio
 async def test_execute_should_lookup_document_title_when_building_sources(
     use_case: AskQuestion,
-    document_repository: AsyncMock,
+    uow: AsyncMock,
     sample_chunk: Chunk,
 ) -> None:
     input_dto = AskQuestionInput(question_text="What is Python?")
 
     await use_case.execute(input_dto)
 
-    document_repository.find_by_id.assert_awaited_once_with(sample_chunk.document_id)
+    uow.documents.find_by_id.assert_awaited_once_with(sample_chunk.document_id)
