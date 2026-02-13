@@ -84,9 +84,11 @@ async def ingest_file(
 @router.get("/documents", response_model=list[DocumentResponse])
 async def list_documents(
     use_case: Annotated[ListDocuments, Depends(get_list_documents)],
+    offset: int = 0,
+    limit: int = 50,
 ) -> list[DocumentResponse]:
-    """List all ingested documents."""
-    documents = await use_case.execute()
+    """List ingested documents with pagination."""
+    documents = await use_case.execute(offset=offset, limit=limit)
     return [
         DocumentResponse(
             id=doc.id,

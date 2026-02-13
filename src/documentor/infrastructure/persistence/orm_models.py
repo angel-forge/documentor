@@ -1,10 +1,12 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from documentor.infrastructure.database import Base
+
+EMBEDDING_DIMENSION = 1536
 
 
 class DocumentModel(Base):
@@ -25,9 +27,19 @@ class ChunkModel(Base):
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
     document_id: Mapped[str] = mapped_column(
-        String, ForeignKey("documents.id"), nullable=False
+        String, ForeignKey("documents.id"), nullable=False, index=True
     )
     text: Mapped[str] = mapped_column(Text, nullable=False)
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    embedding = mapped_column(Vector(1536), nullable=True)
+    embedding = mapped_column(Vector(EMBEDDING_DIMENSION), nullable=True)
+
+    __table_args__ = (
+        Index(
+            "ix_chunks_embedding",
+            embedding,
+            postgresql_using="hnsw",
+            postgresql_with={"m": 16, "ef_construction": 64},
+            postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+    )

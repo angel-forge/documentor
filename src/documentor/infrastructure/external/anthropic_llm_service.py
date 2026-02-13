@@ -20,6 +20,8 @@ class AnthropicLLMService(LLMService):
                 system=system_prompt,
                 messages=[{"role": "user", "content": question.text}],
             )
+            if not response.content:
+                raise LLMGenerationError("LLM returned empty response")
             return response.content[0].text
         except LLMGenerationError:
             raise

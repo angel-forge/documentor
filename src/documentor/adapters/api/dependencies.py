@@ -42,6 +42,20 @@ def get_session_factory(
     return _session_factory
 
 
+@lru_cache
+def _get_embedding_service(api_key: str, model: str) -> OpenAIEmbeddingService:
+    return OpenAIEmbeddingService(api_key=api_key, model=model)
+
+
+@lru_cache
+def _get_llm_service(
+    provider: str, api_key: str, model: str
+) -> AnthropicLLMService | OpenAILLMService:
+    if provider == "anthropic":
+        return AnthropicLLMService(api_key=api_key, model=model)
+    return OpenAILLMService(api_key=api_key, model=model)
+
+
 def _build_ingest_use_case(
     loader: HttpDocumentLoader | FileDocumentLoader,
     settings: Settings,
@@ -49,7 +63,7 @@ def _build_ingest_use_case(
 ) -> IngestDocumentation:
     return IngestDocumentation(
         loader=loader,
-        embedding_service=OpenAIEmbeddingService(
+        embedding_service=_get_embedding_service(
             api_key=settings.openai_api_key,
             model=settings.embedding_model,
         ),
@@ -72,19 +86,18 @@ def get_ask_question(
         async_sessionmaker[AsyncSession], Depends(get_session_factory)
     ],
 ) -> AskQuestion:
-    if settings.llm_provider == "anthropic":
-        llm_service = AnthropicLLMService(
-            api_key=settings.anthropic_api_key,
-            model=settings.llm_model,
-        )
-    else:
-        llm_service = OpenAILLMService(
-            api_key=settings.openai_api_key,
-            model=settings.llm_model,
-        )
+    llm_service = _get_llm_service(
+        provider=settings.llm_provider,
+        api_key=(
+            settings.anthropic_api_key
+            if settings.llm_provider == "anthropic"
+            else settings.openai_api_key
+        ),
+        model=settings.llm_model,
+    )
 
     return AskQuestion(
-        embedding_service=OpenAIEmbeddingService(
+        embedding_service=_get_embedding_service(
             api_key=settings.openai_api_key,
             model=settings.embedding_model,
         ),

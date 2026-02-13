@@ -42,8 +42,13 @@ class PgDocumentRepository(DocumentRepository):
         result = await self._session.execute(stmt)
         return {model.id: _to_entity(model) for model in result.scalars().all()}
 
-    async def list_all(self) -> list[Document]:
-        result = await self._session.execute(select(DocumentModel))
+    async def list_all(
+        self, *, offset: int = 0, limit: int | None = None
+    ) -> list[Document]:
+        stmt = select(DocumentModel).offset(offset)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        result = await self._session.execute(stmt)
         return [_to_entity(model) for model in result.scalars().all()]
 
 
