@@ -44,4 +44,6 @@ async def test_ask_should_return_502_when_llm_fails(
     response = await client.post("/ask", json={"question": "What is the answer?"})
 
     assert response.status_code == 502
-    assert response.json() == {"detail": "LLM service unavailable"}
+    assert response.json() == {
+        "detail": "Language model service is currently unavailable"
+    }

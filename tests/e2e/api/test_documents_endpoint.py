@@ -40,6 +40,24 @@ async def test_ingest_should_return_422_when_source_missing(
 
 
 @pytest.mark.asyncio
+async def test_ingest_should_return_422_when_source_is_not_url(
+    client: AsyncClient,
+) -> None:
+    response = await client.post("/ingest/url", json={"source": "/etc/passwd"})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_ingest_should_return_422_when_source_is_file_scheme(
+    client: AsyncClient,
+) -> None:
+    response = await client.post("/ingest/url", json={"source": "file:///etc/passwd"})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_ingest_should_return_409_when_duplicate_and_reject(
     client: AsyncClient,
     mock_ingest_documentation: AsyncMock,

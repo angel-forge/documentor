@@ -11,7 +11,7 @@ class DocumentModel(Base):
     __tablename__ = "documents"
 
     id: Mapped[str] = mapped_column(String, primary_key=True)
-    source: Mapped[str] = mapped_column(String, nullable=False)
+    source: Mapped[str] = mapped_column(String, nullable=False, unique=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     source_type: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(

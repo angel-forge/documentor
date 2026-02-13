@@ -23,13 +23,20 @@ _EXCEPTION_STATUS_MAP: dict[type[Exception], int] = {
     LLMGenerationError: 502,
 }
 
+_SAFE_MESSAGES: dict[type[Exception], str] = {
+    DocumentLoadError: "Failed to load the document from the given source",
+    EmbeddingGenerationError: "Embedding generation service is currently unavailable",
+    LLMGenerationError: "Language model service is currently unavailable",
+}
+
 
 def register_error_handlers(app: FastAPI) -> None:
     for exc_class, status_code in _EXCEPTION_STATUS_MAP.items():
 
         def _make_handler(status: int):  # noqa: ANN001, ANN202
             async def handler(request: Request, exc: Exception) -> JSONResponse:
-                return JSONResponse(status_code=status, content={"detail": str(exc)})
+                detail = _SAFE_MESSAGES.get(type(exc), str(exc))
+                return JSONResponse(status_code=status, content={"detail": detail})
 
             return handler
 

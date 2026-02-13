@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import Literal
+from urllib.parse import urlparse
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class AskQuestionRequest(BaseModel):
@@ -11,6 +12,16 @@ class AskQuestionRequest(BaseModel):
 class IngestDocumentRequest(BaseModel):
     source: str
     on_duplicate: Literal["reject", "skip", "replace"] = "reject"
+
+    @field_validator("source")
+    @classmethod
+    def source_must_be_http_url(cls, v: str) -> str:
+        parsed = urlparse(v)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("Source must be an HTTP or HTTPS URL")
+        if not parsed.netloc:
+            raise ValueError("Source must include a valid hostname")
+        return v
 
 
 class SourceReferenceResponse(BaseModel):
