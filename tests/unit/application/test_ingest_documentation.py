@@ -203,9 +203,7 @@ async def test_execute_should_return_existing_document_when_source_exists_and_sk
     uow.documents.find_by_source.return_value = existing
 
     result = await use_case.execute(
-        IngestDocumentationInput(
-            source="https://example.com/docs", on_duplicate="skip"
-        )
+        IngestDocumentationInput(source="https://example.com/docs", on_duplicate="skip")
     )
 
     assert result.document.id == "existing-doc-id"

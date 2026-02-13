@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from functools import lru_cache
 from typing import Annotated
 
@@ -13,6 +14,7 @@ from documentor.infrastructure.database import (
     create_session_factory,
 )
 from documentor.infrastructure.external.anthropic_llm_service import AnthropicLLMService
+from documentor.infrastructure.external.file_document_loader import FileDocumentLoader
 from documentor.infrastructure.external.http_document_loader import HttpDocumentLoader
 from documentor.infrastructure.external.openai_embedding_service import (
     OpenAIEmbeddingService,
@@ -40,20 +42,28 @@ def get_session_factory(
     return _session_factory
 
 
-def get_ingest_documentation(
-    settings: Annotated[Settings, Depends(get_settings)],
-    session_factory: Annotated[
-        async_sessionmaker[AsyncSession], Depends(get_session_factory)
-    ],
+def _build_ingest_use_case(
+    loader: HttpDocumentLoader | FileDocumentLoader,
+    settings: Settings,
+    session_factory: async_sessionmaker[AsyncSession],
 ) -> IngestDocumentation:
     return IngestDocumentation(
-        loader=HttpDocumentLoader(),
+        loader=loader,
         embedding_service=OpenAIEmbeddingService(
             api_key=settings.openai_api_key,
             model=settings.embedding_model,
         ),
         uow=PgUnitOfWork(session_factory),
     )
+
+
+def get_ingest_documentation(
+    settings: Annotated[Settings, Depends(get_settings)],
+    session_factory: Annotated[
+        async_sessionmaker[AsyncSession], Depends(get_session_factory)
+    ],
+) -> IngestDocumentation:
+    return _build_ingest_use_case(HttpDocumentLoader(), settings, session_factory)
 
 
 def get_ask_question(
@@ -81,6 +91,20 @@ def get_ask_question(
         llm_service=llm_service,
         uow=PgUnitOfWork(session_factory),
     )
+
+
+def get_ingest_file_documentation(
+    settings: Annotated[Settings, Depends(get_settings)],
+    session_factory: Annotated[
+        async_sessionmaker[AsyncSession], Depends(get_session_factory)
+    ],
+) -> Callable[[bytes, str], IngestDocumentation]:
+    def factory(file_content: bytes, filename: str) -> IngestDocumentation:
+        loader = FileDocumentLoader(file_content, filename)
+
+        return _build_ingest_use_case(loader, settings, session_factory)
+
+    return factory
 
 
 def get_list_documents(

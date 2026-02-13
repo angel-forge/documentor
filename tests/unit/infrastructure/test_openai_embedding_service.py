@@ -57,8 +57,12 @@ async def test_embed_batch_should_split_into_batches_when_exceeding_limit(
     assert len(result) == total
     assert service._client.embeddings.create.await_count == 2
 
-    first_call_input = service._client.embeddings.create.call_args_list[0].kwargs["input"]
-    second_call_input = service._client.embeddings.create.call_args_list[1].kwargs["input"]
+    first_call_input = service._client.embeddings.create.call_args_list[0].kwargs[
+        "input"
+    ]
+    second_call_input = service._client.embeddings.create.call_args_list[1].kwargs[
+        "input"
+    ]
     assert len(first_call_input) == _MAX_BATCH_SIZE
     assert len(second_call_input) == 100
 

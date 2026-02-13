@@ -1,6 +1,6 @@
 from collections.abc import AsyncIterator
 from datetime import datetime, timezone
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from documentor.adapters.api.dependencies import (
     get_ask_question,
     get_ingest_documentation,
+    get_ingest_file_documentation,
     get_list_documents,
 )
 from documentor.adapters.api.main import create_app
@@ -55,6 +56,25 @@ def mock_ask_question() -> AsyncMock:
 
 
 @pytest.fixture
+def mock_ingest_file_documentation() -> MagicMock:
+    mock_use_case = AsyncMock()
+    mock_use_case.execute.return_value = IngestResultDTO(
+        document=DocumentDTO(
+            id="doc-file-1",
+            source="sha256:abc123",
+            title="uploaded",
+            source_type="file",
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            chunk_count=2,
+        ),
+        chunks_created=2,
+    )
+    factory = MagicMock(return_value=mock_use_case)
+    factory._mock_use_case = mock_use_case  # type: ignore[attr-defined]
+    return factory
+
+
+@pytest.fixture
 def mock_list_documents() -> AsyncMock:
     mock = AsyncMock()
     mock.execute.return_value = [
@@ -73,12 +93,16 @@ def mock_list_documents() -> AsyncMock:
 @pytest_asyncio.fixture
 async def client(
     mock_ingest_documentation: AsyncMock,
+    mock_ingest_file_documentation: MagicMock,
     mock_ask_question: AsyncMock,
     mock_list_documents: AsyncMock,
 ) -> AsyncIterator[AsyncClient]:
     app = create_app()
     app.dependency_overrides[get_ingest_documentation] = lambda: (
         mock_ingest_documentation
+    )
+    app.dependency_overrides[get_ingest_file_documentation] = lambda: (
+        mock_ingest_file_documentation
     )
     app.dependency_overrides[get_ask_question] = lambda: mock_ask_question
     app.dependency_overrides[get_list_documents] = lambda: mock_list_documents

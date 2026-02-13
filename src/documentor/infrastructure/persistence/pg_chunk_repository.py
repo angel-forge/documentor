@@ -31,7 +31,6 @@ class PgChunkRepository(ChunkRepository):
         rows = result.all()
         return [(_to_entity(row[0]), 1.0 - float(row[1])) for row in rows]
 
-
     async def delete_by_document_id(self, document_id: str) -> None:
         stmt = delete(ChunkModel).where(ChunkModel.document_id == document_id)
         await self._session.execute(stmt)
