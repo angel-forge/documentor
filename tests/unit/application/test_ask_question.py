@@ -49,7 +49,9 @@ def uow(sample_chunk: Chunk, sample_document: Document) -> AsyncMock:
     mock = AsyncMock()
     mock.__aenter__.return_value = mock
     mock.chunks.search_similar.return_value = [(sample_chunk, 0.95)]
-    mock.documents.find_by_ids.return_value = {sample_chunk.document_id: sample_document}
+    mock.documents.find_by_ids.return_value = {
+        sample_chunk.document_id: sample_document
+    }
     return mock
 
 
@@ -163,7 +165,7 @@ async def test_execute_should_discard_low_relevance_chunks_when_below_threshold(
 
     uow = AsyncMock()
     uow.__aenter__.return_value = uow
-    uow.chunks.search_similar.return_value = [(high_chunk, 0.8), (low_chunk, 0.3)]
+    uow.chunks.search_similar.return_value = [(high_chunk, 0.8), (low_chunk, 0.1)]
     uow.documents.find_by_ids.return_value = {"doc-1": sample_document}
 
     use_case = AskQuestion(

@@ -7,7 +7,7 @@ from documentor.domain.unit_of_work import UnitOfWork
 from documentor.application.dtos import AnswerDTO, AskQuestionInput
 
 
-MIN_RELEVANCE_SCORE = 0.5
+MIN_RELEVANCE_SCORE = 0.3
 
 
 class AskQuestion:
