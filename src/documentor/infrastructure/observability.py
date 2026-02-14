@@ -1,4 +1,5 @@
 from collections.abc import AsyncIterator
+from typing import Any
 
 from langfuse import get_client
 
@@ -7,6 +8,23 @@ from documentor.domain.models.conversation import ConversationMessage
 from documentor.domain.models.question import Question
 from documentor.domain.services.embedding_service import EmbeddingService
 from documentor.domain.services.llm_service import LLMService
+
+
+def _serialize_history(
+    history: tuple[ConversationMessage, ...],
+) -> list[dict[str, str]]:
+    return [{"role": msg.role, "content": msg.content} for msg in history]
+
+
+def _serialize_chunks(chunks: list[Chunk]) -> list[dict[str, Any]]:
+    return [
+        {
+            "position": c.position,
+            "text": c.content.text,
+            "document_id": c.document_id,
+        }
+        for c in chunks
+    ]
 
 
 class ObservedLLMService(LLMService):
@@ -22,7 +40,11 @@ class ObservedLLMService(LLMService):
         with get_client().start_as_current_observation(
             name="llm-generate",
             as_type="generation",
-            input={"question": question.text},
+            input={
+                "question": question.text,
+                "conversation_history": _serialize_history(conversation_history),
+                "context_chunks": _serialize_chunks(context_chunks),
+            },
         ) as span:
             result = await self._inner.generate(
                 question, context_chunks, conversation_history
@@ -39,7 +61,11 @@ class ObservedLLMService(LLMService):
         with get_client().start_as_current_observation(
             name="llm-generate-stream",
             as_type="generation",
-            input={"question": question.text},
+            input={
+                "question": question.text,
+                "conversation_history": _serialize_history(conversation_history),
+                "context_chunks": _serialize_chunks(context_chunks),
+            },
         ) as span:
             collected: list[str] = []
             async for chunk in self._inner.generate_stream(
@@ -57,7 +83,10 @@ class ObservedLLMService(LLMService):
         with get_client().start_as_current_observation(
             name="llm-rewrite-query",
             as_type="generation",
-            input={"question": question.text},
+            input={
+                "question": question.text,
+                "conversation_history": _serialize_history(conversation_history),
+            },
         ) as span:
             result = await self._inner.rewrite_query(question, conversation_history)
             span.update(output=result)
