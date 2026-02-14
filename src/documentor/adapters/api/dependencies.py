@@ -63,12 +63,18 @@ def _build_ingest_use_case(
     settings: Settings,
     session_factory: async_sessionmaker[AsyncSession],
 ) -> IngestDocumentation:
+    embedding_service = _get_embedding_service(
+        api_key=settings.openai_api_key,
+        model=settings.embedding_model,
+    )
+    if settings.langfuse_enabled:
+        from documentor.infrastructure.observability import ObservedEmbeddingService
+
+        embedding_service = ObservedEmbeddingService(embedding_service)
+
     return IngestDocumentation(
         loader=loader,
-        embedding_service=_get_embedding_service(
-            api_key=settings.openai_api_key,
-            model=settings.embedding_model,
-        ),
+        embedding_service=embedding_service,
         uow=PgUnitOfWork(session_factory),
     )
 
@@ -88,6 +94,10 @@ def get_ask_question(
         async_sessionmaker[AsyncSession], Depends(get_session_factory)
     ],
 ) -> AskQuestion:
+    embedding_service = _get_embedding_service(
+        api_key=settings.openai_api_key,
+        model=settings.embedding_model,
+    )
     llm_service = _get_llm_service(
         provider=settings.llm_provider,
         api_key=(
@@ -99,11 +109,17 @@ def get_ask_question(
         rewrite_model=settings.rewrite_model,
     )
 
+    if settings.langfuse_enabled:
+        from documentor.infrastructure.observability import (
+            ObservedEmbeddingService,
+            ObservedLLMService,
+        )
+
+        embedding_service = ObservedEmbeddingService(embedding_service)
+        llm_service = ObservedLLMService(llm_service)
+
     return AskQuestion(
-        embedding_service=_get_embedding_service(
-            api_key=settings.openai_api_key,
-            model=settings.embedding_model,
-        ),
+        embedding_service=embedding_service,
         llm_service=llm_service,
         uow=PgUnitOfWork(session_factory),
     )

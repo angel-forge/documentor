@@ -21,7 +21,22 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             f"match the database column dimension={EMBEDDING_DIMENSION}. "
             f"Update EMBEDDING_DIMENSION in orm_models.py and create a migration."
         )
+
+    langfuse_client = None
+    if settings.langfuse_enabled:
+        from langfuse import Langfuse
+
+        langfuse_client = Langfuse(
+            public_key=settings.langfuse_public_key,
+            secret_key=settings.langfuse_secret_key,
+            base_url=settings.langfuse_host,
+        )
+
     yield
+
+    if langfuse_client is not None:
+        langfuse_client.flush()
+        langfuse_client.shutdown()
 
 
 def create_app() -> FastAPI:

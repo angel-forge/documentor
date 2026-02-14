@@ -13,3 +13,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4o-mini"
     rewrite_model: str = ""
     cors_origins: list[str] = ["http://localhost:5173"]
+    langfuse_secret_key: str = ""
+    langfuse_public_key: str = ""
+    langfuse_host: str = "https://cloud.langfuse.com"
+    langfuse_enabled: bool = False
