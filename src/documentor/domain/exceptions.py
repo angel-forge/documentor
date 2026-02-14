@@ -16,6 +16,10 @@ class InvalidChunkError(DocumentorDomainError):
     pass
 
 
+class InvalidAnswerError(DocumentorDomainError):
+    pass
+
+
 class InvalidQuestionError(DocumentorDomainError):
     pass
 

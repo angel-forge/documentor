@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from documentor.domain.exceptions import InvalidChunkError
+from documentor.domain.exceptions import InvalidAnswerError
 
 
 @dataclass(frozen=True)
@@ -12,7 +12,7 @@ class SourceReference:
 
     def __post_init__(self) -> None:
         if not (0.0 <= self.relevance_score <= 1.0):
-            raise InvalidChunkError(
+            raise InvalidAnswerError(
                 f"Relevance score must be between 0.0 and 1.0, got {self.relevance_score}"
             )
 
@@ -24,7 +24,7 @@ class Answer:
 
     def __post_init__(self) -> None:
         if not self.text or not self.text.strip():
-            raise InvalidChunkError("Answer text cannot be empty")
+            raise InvalidAnswerError("Answer text cannot be empty")
 
     def has_sources(self) -> bool:
         return len(self.sources) > 0

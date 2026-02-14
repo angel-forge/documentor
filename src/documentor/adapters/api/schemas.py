@@ -2,11 +2,11 @@ from datetime import datetime
 from typing import Literal
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class AskQuestionRequest(BaseModel):
-    question: str
+    question: str = Field(..., min_length=1, max_length=1000)
 
 
 class IngestDocumentRequest(BaseModel):

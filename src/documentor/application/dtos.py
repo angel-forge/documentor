@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
 from documentor.domain.models.answer import Answer, SourceReference
 from documentor.domain.models.document import Document
@@ -8,7 +9,7 @@ from documentor.domain.models.document import Document
 @dataclass(frozen=True)
 class IngestDocumentationInput:
     source: str
-    on_duplicate: str = "reject"
+    on_duplicate: Literal["reject", "skip", "replace"] = "reject"
 
 
 @dataclass(frozen=True)
