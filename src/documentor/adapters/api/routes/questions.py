@@ -1,6 +1,8 @@
+import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from documentor.adapters.api.dependencies import get_ask_question
 from documentor.adapters.api.schemas import (
@@ -33,3 +35,18 @@ async def ask_question(
             for src in result.sources
         ],
     )
+
+
+@router.post("/ask/stream")
+async def ask_question_stream(
+    request: AskQuestionRequest,
+    use_case: Annotated[AskQuestion, Depends(get_ask_question)],
+) -> StreamingResponse:
+    """Ask a question and receive a streamed NDJSON response."""
+    input_dto = AskQuestionInput(question_text=request.question)
+
+    async def event_generator():
+        async for event in use_case.execute_stream(input_dto):
+            yield json.dumps(event) + "\n"
+
+    return StreamingResponse(event_generator(), media_type="application/x-ndjson")

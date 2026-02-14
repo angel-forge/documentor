@@ -1,4 +1,5 @@
-from unittest.mock import AsyncMock
+from collections.abc import AsyncIterator
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -208,3 +209,70 @@ async def test_execute_should_return_no_results_when_all_chunks_below_threshold(
     assert result.text == "No relevant documentation found for your question."
     assert result.sources == []
     llm_service.generate.assert_not_awaited()
+
+
+async def _async_gen(items: list[str]) -> AsyncIterator[str]:
+    for item in items:
+        yield item
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_should_yield_text_events_and_sources_when_chunks_exist(
+    sample_chunk: Chunk,
+    sample_document: Document,
+    embedding_service: AsyncMock,
+    uow: AsyncMock,
+) -> None:
+    llm_service = AsyncMock()
+    llm_service.generate_stream = MagicMock(
+        side_effect=lambda q, c: _async_gen(["Hello", " world"])
+    )
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+    )
+    input_dto = AskQuestionInput(question_text="What is Python?")
+
+    events = [event async for event in use_case.execute_stream(input_dto)]
+
+    text_events = [e for e in events if e["type"] == "text"]
+    assert len(text_events) == 2
+    assert text_events[0]["content"] == "Hello"
+    assert text_events[1]["content"] == " world"
+
+    sources_events = [e for e in events if e["type"] == "sources"]
+    assert len(sources_events) == 1
+    assert len(sources_events[0]["sources"]) == 1
+    assert sources_events[0]["sources"][0]["document_title"] == "Python Docs"
+
+    done_events = [e for e in events if e["type"] == "done"]
+    assert len(done_events) == 1
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_should_yield_no_results_when_no_chunks_found(
+    embedding_service: AsyncMock,
+    llm_service: AsyncMock,
+) -> None:
+    uow = AsyncMock()
+    uow.__aenter__.return_value = uow
+    uow.chunks.search_similar.return_value = []
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+    )
+    input_dto = AskQuestionInput(question_text="What is Python?")
+
+    events = [event async for event in use_case.execute_stream(input_dto)]
+
+    assert events[0] == {
+        "type": "text",
+        "content": "No relevant documentation found for your question.",
+    }
+    assert events[1] == {"type": "sources", "sources": []}
+    assert events[2] == {"type": "done"}
+    llm_service.generate_stream.assert_not_called()

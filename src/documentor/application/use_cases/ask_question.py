@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from typing import Any
+
 from documentor.domain.models.answer import Answer, SourceReference
 from documentor.domain.models.question import Question
 from documentor.domain.services.embedding_service import EmbeddingService
@@ -65,3 +68,48 @@ class AskQuestion:
         )
 
         return AnswerDTO.from_domain(answer)
+
+    async def execute_stream(
+        self, input: AskQuestionInput
+    ) -> AsyncIterator[dict[str, Any]]:
+        """Process a question using RAG with streaming LLM output."""
+        question = Question(text=input.question_text)
+
+        embedding = await self._embedding_service.embed(question.text)
+
+        async with self._uow:
+            results = await self._uow.chunks.search_similar(embedding, top_k=5)
+            results = [
+                (chunk, score)
+                for chunk, score in results
+                if score >= MIN_RELEVANCE_SCORE
+            ]
+
+            if not results:
+                yield {"type": "text", "content": "No relevant documentation found for your question."}
+                yield {"type": "sources", "sources": []}
+                yield {"type": "done"}
+                return
+
+            chunks = [chunk for chunk, _score in results]
+            document_ids = {chunk.document_id for chunk, _score in results}
+            documents = await self._uow.documents.find_by_ids(document_ids)
+            doc_titles = {
+                doc_id: documents[doc_id].title if doc_id in documents else doc_id
+                for doc_id in document_ids
+            }
+
+        async for text_chunk in self._llm_service.generate_stream(question, chunks):
+            yield {"type": "text", "content": text_chunk}
+
+        sources = [
+            {
+                "document_title": doc_titles[chunk.document_id],
+                "chunk_text": chunk.content.text,
+                "relevance_score": score,
+                "chunk_id": chunk.id,
+            }
+            for chunk, score in results
+        ]
+        yield {"type": "sources", "sources": sources}
+        yield {"type": "done"}

@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+
 from anthropic import AsyncAnthropic
 
 from documentor.domain.exceptions import LLMGenerationError
@@ -24,6 +26,24 @@ class AnthropicLLMService(LLMService):
             if not response.content:
                 raise LLMGenerationError("LLM returned empty response")
             return response.content[0].text
+        except LLMGenerationError:
+            raise
+        except Exception as e:
+            raise LLMGenerationError(f"Failed to generate answer: {e}") from e
+
+    async def generate_stream(
+        self, question: Question, context_chunks: list[Chunk]
+    ) -> AsyncIterator[str]:
+        try:
+            system_prompt = build_rag_system_prompt(context_chunks)
+            async with self._client.messages.stream(
+                model=self._model,
+                max_tokens=1024,
+                system=system_prompt,
+                messages=[{"role": "user", "content": question.text}],
+            ) as stream:
+                async for text in stream.text_stream:
+                    yield text
         except LLMGenerationError:
             raise
         except Exception as e:

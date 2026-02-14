@@ -1,3 +1,5 @@
+from collections.abc import AsyncIterator
+
 from openai import AsyncOpenAI
 
 from documentor.domain.exceptions import LLMGenerationError
@@ -26,6 +28,28 @@ class OpenAILLMService(LLMService):
             if not text.strip():
                 raise LLMGenerationError("LLM returned empty response")
             return text
+        except LLMGenerationError:
+            raise
+        except Exception as e:
+            raise LLMGenerationError(f"Failed to generate answer: {e}") from e
+
+    async def generate_stream(
+        self, question: Question, context_chunks: list[Chunk]
+    ) -> AsyncIterator[str]:
+        try:
+            system_prompt = build_rag_system_prompt(context_chunks)
+            stream = await self._client.chat.completions.create(
+                model=self._model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": question.text},
+                ],
+                stream=True,
+            )
+            async for chunk in stream:
+                delta = chunk.choices[0].delta.content
+                if delta:
+                    yield delta
         except LLMGenerationError:
             raise
         except Exception as e:

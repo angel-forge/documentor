@@ -4,14 +4,13 @@ import { AnswerDisplay } from "@/components/ask/answer-display"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { useAskQuestion } from "@/hooks/use-ask-question"
-import type { ApiError } from "@/api/client"
 
 export function AskPage() {
   useEffect(() => {
     document.title = "Ask — DocuMentor"
   }, [])
 
-  const mutation = useAskQuestion()
+  const { text, sources, isPending, error, ask } = useAskQuestion()
 
   return (
     <div className="space-y-6">
@@ -23,11 +22,11 @@ export function AskPage() {
       </div>
 
       <QuestionForm
-        onSubmit={(question) => mutation.mutate({ question })}
-        isPending={mutation.isPending}
+        onSubmit={(question) => ask(question)}
+        isPending={isPending}
       />
 
-      {mutation.isPending && (
+      {isPending && !text && (
         <div className="space-y-3">
           <Skeleton className="h-4 w-3/4" />
           <Skeleton className="h-4 w-1/2" />
@@ -35,15 +34,13 @@ export function AskPage() {
         </div>
       )}
 
-      {mutation.error && (
+      {error && (
         <Alert variant="destructive">
-          <AlertDescription>
-            {(mutation.error as ApiError).message}
-          </AlertDescription>
+          <AlertDescription>{error.message}</AlertDescription>
         </Alert>
       )}
 
-      {mutation.data && <AnswerDisplay answer={mutation.data} />}
+      {text && <AnswerDisplay text={text} sources={sources} />}
     </div>
   )
 }
