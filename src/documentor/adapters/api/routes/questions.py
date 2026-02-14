@@ -12,8 +12,16 @@ from documentor.adapters.api.schemas import (
 )
 from documentor.application.dtos import AskQuestionInput
 from documentor.application.use_cases.ask_question import AskQuestion
+from documentor.domain.models.conversation import ConversationMessage
 
 router = APIRouter()
+
+
+def _map_history(request: AskQuestionRequest) -> tuple[ConversationMessage, ...]:
+    return tuple(
+        ConversationMessage(role=msg.role, content=msg.content)
+        for msg in request.history
+    )
 
 
 @router.post("/ask", response_model=AnswerResponse)
@@ -22,7 +30,11 @@ async def ask_question(
     use_case: Annotated[AskQuestion, Depends(get_ask_question)],
 ) -> AnswerResponse:
     """Ask a question about the ingested documentation."""
-    result = await use_case.execute(AskQuestionInput(question_text=request.question))
+    input_dto = AskQuestionInput(
+        question_text=request.question,
+        conversation_history=_map_history(request),
+    )
+    result = await use_case.execute(input_dto)
     return AnswerResponse(
         text=result.text,
         sources=[
@@ -43,7 +55,10 @@ async def ask_question_stream(
     use_case: Annotated[AskQuestion, Depends(get_ask_question)],
 ) -> StreamingResponse:
     """Ask a question and receive a streamed NDJSON response."""
-    input_dto = AskQuestionInput(question_text=request.question)
+    input_dto = AskQuestionInput(
+        question_text=request.question,
+        conversation_history=_map_history(request),
+    )
 
     async def event_generator():
         async for event in use_case.execute_stream(input_dto):

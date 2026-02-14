@@ -28,8 +28,14 @@ export interface IngestResponse {
   chunks_created: number
 }
 
+export interface ConversationMessage {
+  role: "user" | "assistant"
+  content: string
+}
+
 export interface AskQuestionRequest {
   question: string
+  history?: ConversationMessage[]
 }
 
 export interface IngestUrlRequest {

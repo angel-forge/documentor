@@ -5,8 +5,14 @@ from urllib.parse import urlparse
 from pydantic import BaseModel, Field, field_validator
 
 
+class ConversationMessageSchema(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=10000)
+
+
 class AskQuestionRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=1000)
+    history: list[ConversationMessageSchema] = Field(default_factory=list, max_length=50)
 
 
 class IngestDocumentRequest(BaseModel):

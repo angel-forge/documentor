@@ -5,6 +5,7 @@ from httpx import AsyncClient
 
 from documentor.application.dtos import AskQuestionInput
 from documentor.domain.exceptions import LLMGenerationError
+from documentor.domain.models.conversation import ConversationMessage
 
 
 @pytest.mark.asyncio
@@ -47,3 +48,61 @@ async def test_ask_should_return_502_when_llm_fails(
     assert response.json() == {
         "detail": "Language model service is currently unavailable"
     }
+
+
+@pytest.mark.asyncio
+async def test_ask_should_accept_request_with_conversation_history(
+    client: AsyncClient,
+    mock_ask_question: AsyncMock,
+) -> None:
+    response = await client.post(
+        "/ask",
+        json={
+            "question": "Tell me more",
+            "history": [
+                {"role": "user", "content": "What is Python?"},
+                {"role": "assistant", "content": "A programming language."},
+            ],
+        },
+    )
+
+    assert response.status_code == 200
+    mock_ask_question.execute.assert_called_once_with(
+        AskQuestionInput(
+            question_text="Tell me more",
+            conversation_history=(
+                ConversationMessage(role="user", content="What is Python?"),
+                ConversationMessage(role="assistant", content="A programming language."),
+            ),
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_ask_should_return_422_when_history_has_invalid_role(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/ask",
+        json={
+            "question": "Tell me more",
+            "history": [{"role": "invalid", "content": "Hello"}],
+        },
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_ask_should_return_422_when_history_message_has_empty_content(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/ask",
+        json={
+            "question": "Tell me more",
+            "history": [{"role": "user", "content": ""}],
+        },
+    )
+
+    assert response.status_code == 422

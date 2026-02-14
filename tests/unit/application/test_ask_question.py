@@ -7,6 +7,7 @@ from documentor.application.dtos import AskQuestionInput
 from documentor.application.use_cases.ask_question import AskQuestion
 from documentor.domain.exceptions import InvalidQuestionError
 from documentor.domain.models.chunk import Chunk, ChunkContent, Embedding
+from documentor.domain.models.conversation import ConversationMessage
 from documentor.domain.models.document import Document, SourceType
 
 
@@ -225,7 +226,7 @@ async def test_execute_stream_should_yield_text_events_and_sources_when_chunks_e
 ) -> None:
     llm_service = AsyncMock()
     llm_service.generate_stream = MagicMock(
-        side_effect=lambda q, c: _async_gen(["Hello", " world"])
+        side_effect=lambda q, c, h=(): _async_gen(["Hello", " world"])
     )
 
     use_case = AskQuestion(
@@ -276,3 +277,73 @@ async def test_execute_stream_should_yield_no_results_when_no_chunks_found(
     assert events[1] == {"type": "sources", "sources": []}
     assert events[2] == {"type": "done"}
     llm_service.generate_stream.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_execute_should_pass_conversation_history_to_llm_when_provided(
+    use_case: AskQuestion,
+    llm_service: AsyncMock,
+) -> None:
+    history = (
+        ConversationMessage(role="user", content="What is Python?"),
+        ConversationMessage(role="assistant", content="A programming language."),
+    )
+    input_dto = AskQuestionInput(
+        question_text="Tell me more", conversation_history=history
+    )
+
+    await use_case.execute(input_dto)
+
+    call_args = llm_service.generate.call_args
+    assert call_args[0][2] == history
+
+
+@pytest.mark.asyncio
+async def test_execute_should_embed_only_current_question_when_history_provided(
+    use_case: AskQuestion,
+    embedding_service: AsyncMock,
+) -> None:
+    history = (
+        ConversationMessage(role="user", content="What is Python?"),
+        ConversationMessage(role="assistant", content="A programming language."),
+    )
+    input_dto = AskQuestionInput(
+        question_text="Tell me more", conversation_history=history
+    )
+
+    await use_case.execute(input_dto)
+
+    embedding_service.embed.assert_awaited_once_with("Tell me more")
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_should_pass_conversation_history_to_llm_when_provided(
+    sample_chunk: Chunk,
+    sample_document: Document,
+    embedding_service: AsyncMock,
+    uow: AsyncMock,
+) -> None:
+    llm_service = AsyncMock()
+    llm_service.generate_stream = MagicMock(
+        side_effect=lambda q, c, h: _async_gen(["Hello"])
+    )
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+    )
+
+    history = (
+        ConversationMessage(role="user", content="What is Python?"),
+        ConversationMessage(role="assistant", content="A programming language."),
+    )
+    input_dto = AskQuestionInput(
+        question_text="Tell me more", conversation_history=history
+    )
+
+    events = [event async for event in use_case.execute_stream(input_dto)]
+    assert any(e["type"] == "text" for e in events)
+
+    call_args = llm_service.generate_stream.call_args
+    assert call_args[0][2] == history

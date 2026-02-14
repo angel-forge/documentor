@@ -1,8 +1,9 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Literal
 
 from documentor.domain.models.answer import Answer, SourceReference
+from documentor.domain.models.conversation import ConversationMessage
 from documentor.domain.models.document import Document
 
 
@@ -15,6 +16,7 @@ class IngestDocumentationInput:
 @dataclass(frozen=True)
 class AskQuestionInput:
     question_text: str
+    conversation_history: tuple[ConversationMessage, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)

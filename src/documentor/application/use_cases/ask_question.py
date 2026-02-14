@@ -45,7 +45,9 @@ class AskQuestion:
                 )
 
             chunks = [chunk for chunk, _score in results]
-            text = await self._llm_service.generate(question, chunks)
+            text = await self._llm_service.generate(
+                question, chunks, input.conversation_history
+            )
 
             document_ids = {chunk.document_id for chunk, _score in results}
             documents = await self._uow.documents.find_by_ids(document_ids)
@@ -99,7 +101,9 @@ class AskQuestion:
                 for doc_id in document_ids
             }
 
-        async for text_chunk in self._llm_service.generate_stream(question, chunks):
+        async for text_chunk in self._llm_service.generate_stream(
+            question, chunks, input.conversation_history
+        ):
             yield {"type": "text", "content": text_chunk}
 
         sources = [

@@ -9,11 +9,13 @@ export async function askQuestionStream(
   data: AskQuestionRequest,
   onText: (chunk: string) => void,
   onSources: (sources: SourceReference[]) => void,
+  signal?: AbortSignal,
 ): Promise<void> {
   const response = await fetch(`${BASE_URL}/ask/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(data),
+    signal,
   })
 
   if (!response.ok) {

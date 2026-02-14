@@ -16,6 +16,7 @@ export function QuestionForm({ onSubmit, isPending }: QuestionFormProps) {
     const trimmed = question.trim()
     if (!trimmed) return
     onSubmit(trimmed)
+    setQuestion("")
   }
 
   return (
