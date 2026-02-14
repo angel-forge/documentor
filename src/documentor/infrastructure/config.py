@@ -11,4 +11,5 @@ class Settings(BaseSettings):
     embedding_dimension: int = 1536
     llm_provider: str = "openai"
     llm_model: str = "gpt-4o-mini"
+    rewrite_model: str = ""
     cors_origins: list[str] = ["http://localhost:5173"]

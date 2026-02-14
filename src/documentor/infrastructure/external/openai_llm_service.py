@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 
 from openai import AsyncOpenAI
@@ -8,7 +9,14 @@ from documentor.domain.models.chunk import Chunk
 from documentor.domain.models.conversation import ConversationMessage
 from documentor.domain.models.question import Question
 from documentor.domain.services.llm_service import LLMService
-from documentor.infrastructure.external.prompt_builder import build_rag_system_prompt
+from documentor.infrastructure.external.prompt_builder import (
+    build_query_rewrite_prompt,
+    build_rag_system_prompt,
+    build_rewrite_user_message,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 def _build_history_messages(
@@ -18,9 +26,15 @@ def _build_history_messages(
 
 
 class OpenAILLMService(LLMService):
-    def __init__(self, api_key: str, model: str = "gpt-4o-mini") -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "gpt-4o-mini",
+        rewrite_model: str = "",
+    ) -> None:
         self._client = AsyncOpenAI(api_key=api_key)
         self._model = model
+        self._rewrite_model = rewrite_model or "gpt-4o-mini"
 
     async def generate(
         self,
@@ -74,3 +88,28 @@ class OpenAILLMService(LLMService):
             raise
         except Exception as e:
             raise LLMGenerationError(f"Failed to generate answer: {e}") from e
+
+    async def rewrite_query(
+        self,
+        question: Question,
+        conversation_history: tuple[ConversationMessage, ...],
+    ) -> str:
+        try:
+            system_prompt = build_query_rewrite_prompt()
+            user_message = build_rewrite_user_message(question, conversation_history)
+            response = await self._client.chat.completions.create(
+                model=self._rewrite_model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_message},
+                ],
+                max_tokens=200,
+            )
+            rewritten = (response.choices[0].message.content or "").strip()
+            return rewritten if rewritten else question.text
+        except Exception:
+            logger.warning(
+                "Query rewrite failed, falling back to original question",
+                exc_info=True,
+            )
+            return question.text

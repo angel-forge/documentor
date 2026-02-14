@@ -49,11 +49,13 @@ def _get_embedding_service(api_key: str, model: str) -> OpenAIEmbeddingService:
 
 @lru_cache
 def _get_llm_service(
-    provider: str, api_key: str, model: str
+    provider: str, api_key: str, model: str, rewrite_model: str = ""
 ) -> AnthropicLLMService | OpenAILLMService:
     if provider == "anthropic":
-        return AnthropicLLMService(api_key=api_key, model=model)
-    return OpenAILLMService(api_key=api_key, model=model)
+        return AnthropicLLMService(
+            api_key=api_key, model=model, rewrite_model=rewrite_model
+        )
+    return OpenAILLMService(api_key=api_key, model=model, rewrite_model=rewrite_model)
 
 
 def _build_ingest_use_case(
@@ -94,6 +96,7 @@ def get_ask_question(
             else settings.openai_api_key
         ),
         model=settings.llm_model,
+        rewrite_model=settings.rewrite_model,
     )
 
     return AskQuestion(

@@ -2,6 +2,7 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 from documentor.domain.models.answer import Answer, SourceReference
+from documentor.domain.models.conversation import ConversationMessage
 from documentor.domain.models.question import Question
 from documentor.domain.services.embedding_service import EmbeddingService
 from documentor.domain.services.llm_service import LLMService
@@ -24,11 +25,23 @@ class AskQuestion:
         self._llm_service = llm_service
         self._uow = uow
 
+    async def _get_search_query(
+        self,
+        question: Question,
+        history: tuple[ConversationMessage, ...],
+    ) -> str:
+        if history:
+            return await self._llm_service.rewrite_query(question, history)
+        return question.text
+
     async def execute(self, input: AskQuestionInput) -> AnswerDTO:
         """Process a question using RAG: embed, search, generate."""
         question = Question(text=input.question_text)
 
-        embedding = await self._embedding_service.embed(question.text)
+        search_query = await self._get_search_query(
+            question, input.conversation_history
+        )
+        embedding = await self._embedding_service.embed(search_query)
 
         async with self._uow:
             results = await self._uow.chunks.search_similar(embedding, top_k=5)
@@ -77,7 +90,10 @@ class AskQuestion:
         """Process a question using RAG with streaming LLM output."""
         question = Question(text=input.question_text)
 
-        embedding = await self._embedding_service.embed(question.text)
+        search_query = await self._get_search_query(
+            question, input.conversation_history
+        )
+        embedding = await self._embedding_service.embed(search_query)
 
         async with self._uow:
             results = await self._uow.chunks.search_similar(embedding, top_k=5)
@@ -88,7 +104,10 @@ class AskQuestion:
             ]
 
             if not results:
-                yield {"type": "text", "content": "No relevant documentation found for your question."}
+                yield {
+                    "type": "text",
+                    "content": "No relevant documentation found for your question.",
+                }
                 yield {"type": "sources", "sources": []}
                 yield {"type": "done"}
                 return

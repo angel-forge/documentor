@@ -299,10 +299,14 @@ async def test_execute_should_pass_conversation_history_to_llm_when_provided(
 
 
 @pytest.mark.asyncio
-async def test_execute_should_embed_only_current_question_when_history_provided(
+async def test_execute_should_embed_rewritten_query_when_history_provided(
     use_case: AskQuestion,
     embedding_service: AsyncMock,
+    llm_service: AsyncMock,
 ) -> None:
+    llm_service.rewrite_query.return_value = (
+        "Tell me more about Python programming language"
+    )
     history = (
         ConversationMessage(role="user", content="What is Python?"),
         ConversationMessage(role="assistant", content="A programming language."),
@@ -313,7 +317,10 @@ async def test_execute_should_embed_only_current_question_when_history_provided(
 
     await use_case.execute(input_dto)
 
-    embedding_service.embed.assert_awaited_once_with("Tell me more")
+    llm_service.rewrite_query.assert_awaited_once()
+    embedding_service.embed.assert_awaited_once_with(
+        "Tell me more about Python programming language"
+    )
 
 
 @pytest.mark.asyncio
@@ -347,3 +354,98 @@ async def test_execute_stream_should_pass_conversation_history_to_llm_when_provi
 
     call_args = llm_service.generate_stream.call_args
     assert call_args[0][2] == history
+
+
+@pytest.mark.asyncio
+async def test_execute_should_not_call_rewrite_query_when_no_history(
+    use_case: AskQuestion,
+    llm_service: AsyncMock,
+    embedding_service: AsyncMock,
+) -> None:
+    input_dto = AskQuestionInput(question_text="What is Python?")
+
+    await use_case.execute(input_dto)
+
+    llm_service.rewrite_query.assert_not_awaited()
+    embedding_service.embed.assert_awaited_once_with("What is Python?")
+
+
+@pytest.mark.asyncio
+async def test_execute_should_pass_original_question_to_generate_when_history_provided(
+    use_case: AskQuestion,
+    llm_service: AsyncMock,
+) -> None:
+    llm_service.rewrite_query.return_value = "Rewritten query about Python"
+    history = (
+        ConversationMessage(role="user", content="What is Python?"),
+        ConversationMessage(role="assistant", content="A programming language."),
+    )
+    input_dto = AskQuestionInput(
+        question_text="Tell me more", conversation_history=history
+    )
+
+    await use_case.execute(input_dto)
+
+    call_args = llm_service.generate.call_args
+    assert call_args[0][0].text == "Tell me more"
+    assert call_args[0][2] == history
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_should_call_rewrite_query_when_history_provided(
+    sample_chunk: Chunk,
+    sample_document: Document,
+    embedding_service: AsyncMock,
+    uow: AsyncMock,
+) -> None:
+    llm_service = AsyncMock()
+    llm_service.rewrite_query.return_value = "Rewritten query"
+    llm_service.generate_stream = MagicMock(
+        side_effect=lambda q, c, h: _async_gen(["Hello"])
+    )
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+    )
+
+    history = (
+        ConversationMessage(role="user", content="What is Python?"),
+        ConversationMessage(role="assistant", content="A programming language."),
+    )
+    input_dto = AskQuestionInput(
+        question_text="Tell me more", conversation_history=history
+    )
+
+    events = [event async for event in use_case.execute_stream(input_dto)]
+    assert any(e["type"] == "text" for e in events)
+
+    llm_service.rewrite_query.assert_awaited_once()
+    embedding_service.embed.assert_awaited_once_with("Rewritten query")
+
+
+@pytest.mark.asyncio
+async def test_execute_stream_should_not_call_rewrite_query_when_no_history(
+    sample_chunk: Chunk,
+    sample_document: Document,
+    embedding_service: AsyncMock,
+    uow: AsyncMock,
+) -> None:
+    llm_service = AsyncMock()
+    llm_service.generate_stream = MagicMock(
+        side_effect=lambda q, c, h=(): _async_gen(["Hello"])
+    )
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+    )
+    input_dto = AskQuestionInput(question_text="What is Python?")
+
+    events = [event async for event in use_case.execute_stream(input_dto)]
+    assert any(e["type"] == "text" for e in events)
+
+    llm_service.rewrite_query.assert_not_awaited()
+    embedding_service.embed.assert_awaited_once_with("What is Python?")

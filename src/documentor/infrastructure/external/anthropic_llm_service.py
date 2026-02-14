@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 
 from anthropic import AsyncAnthropic
@@ -8,7 +9,14 @@ from documentor.domain.models.chunk import Chunk
 from documentor.domain.models.conversation import ConversationMessage
 from documentor.domain.models.question import Question
 from documentor.domain.services.llm_service import LLMService
-from documentor.infrastructure.external.prompt_builder import build_rag_system_prompt
+from documentor.infrastructure.external.prompt_builder import (
+    build_query_rewrite_prompt,
+    build_rag_system_prompt,
+    build_rewrite_user_message,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 def _build_history_messages(
@@ -18,9 +26,15 @@ def _build_history_messages(
 
 
 class AnthropicLLMService(LLMService):
-    def __init__(self, api_key: str, model: str = "claude-sonnet-4-5-20250929") -> None:
+    def __init__(
+        self,
+        api_key: str,
+        model: str = "claude-sonnet-4-5-20250929",
+        rewrite_model: str = "",
+    ) -> None:
         self._client = AsyncAnthropic(api_key=api_key)
         self._model = model
+        self._rewrite_model = rewrite_model or "claude-haiku-4-5-20251001"
 
     async def generate(
         self,
@@ -35,7 +49,10 @@ class AnthropicLLMService(LLMService):
                 model=self._model,
                 max_tokens=1024,
                 system=system_prompt,
-                messages=[*history_messages, {"role": "user", "content": question.text}],
+                messages=[
+                    *history_messages,
+                    {"role": "user", "content": question.text},
+                ],
             )
             if not response.content:
                 raise LLMGenerationError("LLM returned empty response")
@@ -58,7 +75,10 @@ class AnthropicLLMService(LLMService):
                 model=self._model,
                 max_tokens=1024,
                 system=system_prompt,
-                messages=[*history_messages, {"role": "user", "content": question.text}],
+                messages=[
+                    *history_messages,
+                    {"role": "user", "content": question.text},
+                ],
             ) as stream:
                 async for text in stream.text_stream:
                     yield text
@@ -66,3 +86,28 @@ class AnthropicLLMService(LLMService):
             raise
         except Exception as e:
             raise LLMGenerationError(f"Failed to generate answer: {e}") from e
+
+    async def rewrite_query(
+        self,
+        question: Question,
+        conversation_history: tuple[ConversationMessage, ...],
+    ) -> str:
+        try:
+            system_prompt = build_query_rewrite_prompt()
+            user_message = build_rewrite_user_message(question, conversation_history)
+            response = await self._client.messages.create(
+                model=self._rewrite_model,
+                max_tokens=200,
+                system=system_prompt,
+                messages=[{"role": "user", "content": user_message}],
+            )
+            if not response.content:
+                return question.text
+            rewritten = response.content[0].text.strip()
+            return rewritten if rewritten else question.text
+        except Exception:
+            logger.warning(
+                "Query rewrite failed, falling back to original question",
+                exc_info=True,
+            )
+            return question.text

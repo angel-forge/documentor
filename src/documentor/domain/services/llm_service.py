@@ -22,3 +22,10 @@ class LLMService(ABC):
         context_chunks: list[Chunk],
         conversation_history: tuple[ConversationMessage, ...] = (),
     ) -> AsyncIterator[str]: ...
+
+    @abstractmethod
+    async def rewrite_query(
+        self,
+        question: Question,
+        conversation_history: tuple[ConversationMessage, ...],
+    ) -> str: ...
