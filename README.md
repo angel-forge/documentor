@@ -108,18 +108,21 @@ Duplicate detection is built in — sources can be rejected, skipped, or replace
 
 ```mermaid
 flowchart LR
-    A["User question<br/>+ conversation history"] --> B["Rewrite query<br/>(Haiku)"]
-    B --> C["Embed question<br/>(OpenAI)"]
-    C --> D["Vector search<br/>top-k, cosine similarity"]
-    D --> E["Generate answer<br/>(Claude / GPT)"]
-    E --> F["Stream response<br/>+ source refs"]
+    A["User question"] --> B{"Has conversation<br/>history?"}
+    B -->|Yes| C["Rewrite query<br/>(lightweight LLM)"]
+    B -->|No| D["Use raw question"]
+    C --> E["Embed query<br/>(OpenAI)"]
+    D --> E
+    E --> F["Vector search<br/>top-k, cosine similarity"]
+    F --> G["Generate answer<br/>(Claude / GPT)"]
+    G --> H["Stream response<br/>+ source refs"]
 ```
 
 ### Query Rewriting for Conversational RAG
 
 In multi-turn conversations, follow-up questions are often ambiguous on their own — "And what about Caminito del Rey?" or "Can you name a few persons involved on that project?" make no sense without prior context. Embedding these raw questions would retrieve irrelevant chunks.
 
-Before searching, a lightweight LLM rewrites the user's question into a standalone query using the conversation history:
+When conversation history exists, a lightweight LLM rewrites the user's question into a standalone query before searching. First-turn questions skip this step entirely and go straight to embedding.
 
 | User says | Rewritten query |
 |-----------|----------------|
