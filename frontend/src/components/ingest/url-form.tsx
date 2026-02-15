@@ -13,13 +13,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { ApiError } from "@/api/client"
 
 interface UrlFormProps {
-  onSubmit: (source: string, onDuplicate: "reject" | "skip" | "replace") => void
+  onSubmit: (
+    source: string,
+    onDuplicate: "reject" | "skip" | "replace",
+    title?: string,
+  ) => void
   isPending: boolean
   error: ApiError | null
 }
 
 export function UrlForm({ onSubmit, isPending, error }: UrlFormProps) {
   const [url, setUrl] = useState("")
+  const [title, setTitle] = useState("")
   const [onDuplicate, setOnDuplicate] = useState<"reject" | "skip" | "replace">(
     "reject",
   )
@@ -28,7 +33,7 @@ export function UrlForm({ onSubmit, isPending, error }: UrlFormProps) {
     e.preventDefault()
     const trimmed = url.trim()
     if (!trimmed) return
-    onSubmit(trimmed, onDuplicate)
+    onSubmit(trimmed, onDuplicate, title.trim() || undefined)
   }
 
   return (
@@ -43,6 +48,19 @@ export function UrlForm({ onSubmit, isPending, error }: UrlFormProps) {
           onChange={(e) => setUrl(e.target.value)}
           placeholder="https://docs.example.com/guide"
           type="url"
+          disabled={isPending}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="title" className="text-sm font-medium">
+          Title <span className="text-muted-foreground font-normal">(optional)</span>
+        </label>
+        <Input
+          id="title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. React Router v7 Docs"
           disabled={isPending}
         />
       </div>

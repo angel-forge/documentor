@@ -40,6 +40,7 @@ export interface AskQuestionRequest {
 
 export interface IngestUrlRequest {
   source: string
+  title?: string
   on_duplicate: "reject" | "skip" | "replace"
 }
 

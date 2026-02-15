@@ -1,6 +1,7 @@
 import { type DragEvent, type FormEvent, useRef, useState } from "react"
 import { Loader2, Upload, FileUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -15,13 +16,18 @@ import type { ApiError } from "@/api/client"
 const ACCEPTED_TYPES = ".txt,.md,.html,.rst,.pdf"
 
 interface FileFormProps {
-  onSubmit: (file: File, onDuplicate: "reject" | "skip" | "replace") => void
+  onSubmit: (
+    file: File,
+    onDuplicate: "reject" | "skip" | "replace",
+    title?: string,
+  ) => void
   isPending: boolean
   error: ApiError | null
 }
 
 export function FileForm({ onSubmit, isPending, error }: FileFormProps) {
   const [file, setFile] = useState<File | null>(null)
+  const [title, setTitle] = useState("")
   const [onDuplicate, setOnDuplicate] = useState<"reject" | "skip" | "replace">(
     "reject",
   )
@@ -38,7 +44,7 @@ export function FileForm({ onSubmit, isPending, error }: FileFormProps) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!file) return
-    onSubmit(file, onDuplicate)
+    onSubmit(file, onDuplicate, title.trim() || undefined)
   }
 
   return (
@@ -80,6 +86,19 @@ export function FileForm({ onSubmit, isPending, error }: FileFormProps) {
             const selected = e.target.files?.[0]
             if (selected) setFile(selected)
           }}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="title-file" className="text-sm font-medium">
+          Title <span className="text-muted-foreground font-normal">(optional)</span>
+        </label>
+        <Input
+          id="title-file"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          placeholder="e.g. Project README"
+          disabled={isPending}
         />
       </div>
 

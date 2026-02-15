@@ -7,10 +7,12 @@ export function useIngestFile() {
     mutationFn: ({
       file,
       onDuplicate,
+      title,
     }: {
       file: File
       onDuplicate: "reject" | "skip" | "replace"
-    }) => ingestFile(file, onDuplicate),
+      title?: string
+    }) => ingestFile(file, onDuplicate, title),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] })
     },
