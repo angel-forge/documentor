@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -24,6 +24,7 @@ async def test_ingest_should_save_document_and_chunks_when_using_real_db(
     embedding = Embedding.from_list([0.1] * 1536)
     embedding_service = AsyncMock()
     embedding_service.embed_batch.return_value = [embedding]
+    embedding_service.count_tokens = Mock(return_value=100)
 
     uow = PgUnitOfWork(session_factory)
 
