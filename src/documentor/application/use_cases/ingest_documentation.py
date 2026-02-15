@@ -49,9 +49,11 @@ class IngestDocumentation:
                     f"No extractable content from source: {input.source}"
                 )
 
+            title = input.title if input.title else loaded.title
+
             document = Document.create(
                 source=input.source,
-                title=loaded.title,
+                title=title,
                 source_type=loaded.source_type,
                 chunk_count=len(text_chunks),
             )

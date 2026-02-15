@@ -25,7 +25,27 @@ async def test_ingest_should_return_document_when_valid_source(
     assert data["chunks_created"] == 3
     mock_ingest_documentation.execute.assert_called_once_with(
         IngestDocumentationInput(
-            source="https://example.com/docs", on_duplicate="reject"
+            source="https://example.com/docs", title=None, on_duplicate="reject"
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_ingest_should_pass_custom_title_to_use_case(
+    client: AsyncClient,
+    mock_ingest_documentation: AsyncMock,
+) -> None:
+    response = await client.post(
+        "/ingest/url",
+        json={"source": "https://example.com/docs", "title": "React Router Docs"},
+    )
+
+    assert response.status_code == 200
+    mock_ingest_documentation.execute.assert_called_once_with(
+        IngestDocumentationInput(
+            source="https://example.com/docs",
+            title="React Router Docs",
+            on_duplicate="reject",
         )
     )
 
@@ -86,7 +106,9 @@ async def test_ingest_should_pass_on_duplicate_to_use_case(
 
     assert response.status_code == 200
     mock_ingest_documentation.execute.assert_called_once_with(
-        IngestDocumentationInput(source="https://example.com/docs", on_duplicate="skip")
+        IngestDocumentationInput(
+            source="https://example.com/docs", title=None, on_duplicate="skip"
+        )
     )
 
 
@@ -141,7 +163,25 @@ async def test_ingest_file_should_return_document_when_valid_txt(
     mock_use_case.execute.assert_called_once()
     call_input = mock_use_case.execute.call_args[0][0]
     assert call_input.source.startswith("sha256:")
+    assert call_input.title is None
     assert call_input.on_duplicate == "reject"
+
+
+@pytest.mark.asyncio
+async def test_ingest_file_should_pass_custom_title_to_use_case(
+    client: AsyncClient,
+    mock_ingest_file_documentation: MagicMock,
+) -> None:
+    response = await client.post(
+        "/ingest/file",
+        files={"file": ("readme.txt", b"Hello, world!", "text/plain")},
+        data={"title": "My Project README"},
+    )
+
+    assert response.status_code == 200
+    mock_use_case = mock_ingest_file_documentation._mock_use_case
+    call_input = mock_use_case.execute.call_args[0][0]
+    assert call_input.title == "My Project README"
 
 
 @pytest.mark.asyncio

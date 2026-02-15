@@ -10,6 +10,7 @@ from documentor.domain.models.document import Document
 @dataclass(frozen=True)
 class IngestDocumentationInput:
     source: str
+    title: str | None = None
     on_duplicate: Literal["reject", "skip", "replace"] = "reject"
 
 

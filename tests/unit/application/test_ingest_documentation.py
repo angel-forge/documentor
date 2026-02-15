@@ -69,6 +69,33 @@ async def test_execute_should_return_result_with_chunks_when_valid_source(
 
 
 @pytest.mark.asyncio
+async def test_execute_should_use_custom_title_when_provided(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+) -> None:
+    input_dto = IngestDocumentationInput(
+        source="https://example.com/docs", title="Custom Title"
+    )
+
+    result = await use_case.execute(input_dto)
+
+    assert result.document.title == "Custom Title"
+    saved_doc = uow.documents.save.call_args[0][0]
+    assert saved_doc.title == "Custom Title"
+
+
+@pytest.mark.asyncio
+async def test_execute_should_use_loader_title_when_no_custom_title(
+    use_case: IngestDocumentation,
+) -> None:
+    input_dto = IngestDocumentationInput(source="https://example.com/docs")
+
+    result = await use_case.execute(input_dto)
+
+    assert result.document.title == "Test Doc"
+
+
+@pytest.mark.asyncio
 async def test_execute_should_call_loader_and_embedding_service_when_ingesting(
     use_case: IngestDocumentation,
     loader: AsyncMock,

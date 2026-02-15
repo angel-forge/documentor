@@ -17,6 +17,7 @@ class AskQuestionRequest(BaseModel):
 
 class IngestDocumentRequest(BaseModel):
     source: str
+    title: str | None = None
     on_duplicate: Literal["reject", "skip", "replace"] = "reject"
 
     @field_validator("source")

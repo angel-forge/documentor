@@ -31,6 +31,7 @@ async def ingest_document(
     result = await use_case.execute(
         IngestDocumentationInput(
             source=request.source,
+            title=request.title,
             on_duplicate=request.on_duplicate,
         )
     )
@@ -55,6 +56,7 @@ async def ingest_file(
         Callable[[bytes, str], IngestDocumentation],
         Depends(get_ingest_file_documentation),
     ],
+    title: Annotated[str | None, Form()] = None,
     on_duplicate: Annotated[Literal["reject", "skip", "replace"], Form()] = "reject",
 ) -> IngestDocumentResponse:
     """Ingest documentation from an uploaded file."""
@@ -64,7 +66,7 @@ async def ingest_file(
     use_case = use_case_factory(content, file.filename or "upload")
 
     result = await use_case.execute(
-        IngestDocumentationInput(source=source, on_duplicate=on_duplicate)
+        IngestDocumentationInput(source=source, title=title, on_duplicate=on_duplicate)
     )
 
     doc = result.document
