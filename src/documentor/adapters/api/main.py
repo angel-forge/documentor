@@ -6,6 +6,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from documentor.adapters.api.dependencies import get_settings
 from documentor.adapters.api.error_handlers import register_error_handlers
+from documentor.infrastructure.database import (
+    create_engine as create_db_engine,
+    create_session_factory,
+)
 from documentor.adapters.api.routes.documents import router as documents_router
 from documentor.adapters.api.routes.health import router as health_router
 from documentor.adapters.api.routes.questions import router as questions_router
@@ -22,6 +26,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             f"Update EMBEDDING_DIMENSION in orm_models.py and create a migration."
         )
 
+    engine = create_db_engine(settings.database_url)
+    app.state.session_factory = create_session_factory(engine)
+
     langfuse_client = None
     if settings.langfuse_enabled:
         from langfuse import Langfuse
@@ -33,6 +40,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         )
 
     yield
+
+    await engine.dispose()
 
     if langfuse_client is not None:
         langfuse_client.flush()

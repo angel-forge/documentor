@@ -2,17 +2,13 @@ from collections.abc import Callable
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import Depends
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker, AsyncSession
+from fastapi import Depends, Request
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from documentor.application.use_cases.ask_question import AskQuestion
 from documentor.application.use_cases.ingest_documentation import IngestDocumentation
 from documentor.application.use_cases.list_documents import ListDocuments
 from documentor.infrastructure.config import Settings
-from documentor.infrastructure.database import (
-    create_engine as create_db_engine,
-    create_session_factory,
-)
 from documentor.infrastructure.external.anthropic_llm_service import AnthropicLLMService
 from documentor.infrastructure.external.file_document_loader import FileDocumentLoader
 from documentor.infrastructure.external.http_document_loader import HttpDocumentLoader
@@ -28,18 +24,10 @@ def get_settings() -> Settings:
     return Settings()
 
 
-_engine: AsyncEngine | None = None
-_session_factory: async_sessionmaker[AsyncSession] | None = None
-
-
 def get_session_factory(
-    settings: Annotated[Settings, Depends(get_settings)],
+    request: Request,
 ) -> async_sessionmaker[AsyncSession]:
-    global _engine, _session_factory
-    if _session_factory is None:
-        _engine = create_db_engine(settings.database_url)
-        _session_factory = create_session_factory(_engine)
-    return _session_factory
+    return request.app.state.session_factory
 
 
 @lru_cache
