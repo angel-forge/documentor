@@ -4,6 +4,8 @@ A **RAG-powered study assistant** that lets you ingest any public technical docu
 
 **Stack:** Python 3.13+ · FastAPI · PostgreSQL + pgvector · Claude / OpenAI · React · uv
 
+https://github.com/user-attachments/assets/caf10da7-d372-4704-a26f-74b90bafbde3
+
 ![Streaming answer](https://img.shields.io/badge/streaming_answer-~2.3s-blue)
 ![Embedding](https://img.shields.io/badge/embedding-~400ms-blue)
 ![Query rewrite](https://img.shields.io/badge/query_rewrite-~1.3s-blue)
