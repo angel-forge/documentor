@@ -273,6 +273,18 @@ make test-all      # Full suite with coverage report
 
 ---
 
+## Planned Improvements
+
+The current retrieval strategy works well for a small-to-medium corpus (a handful of documentation sources). As the number of ingested documents grows, pure vector similarity starts returning chunks from unrelated docs, diluting answer quality.
+
+Next steps to improve retrieval quality at scale:
+
+- **Metadata filtering** — Allow users to scope queries to specific documents or tags before vector search runs. pgvector already supports combining `WHERE` clauses with similarity search, so the change is mostly in the API and use case layers.
+- **Hybrid search** — Combine vector similarity with keyword matching (e.g., `ts_rank` full-text search in PostgreSQL) to catch exact terms that embeddings may miss, especially for acronyms, error codes, or API names.
+- **Re-ranking** — Apply a cross-encoder model on the top-k candidates to re-score them with finer-grained relevance before passing context to the LLM.
+
+---
+
 ## Documentation
 
 Detailed documentation is available in [`docs/`](docs/):

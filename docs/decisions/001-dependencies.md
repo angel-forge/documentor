@@ -1,6 +1,7 @@
 # 001 — Dependencies
 
 Date: 2026-02-11
+Updated: 2026-02-15
 
 ## Production Dependencies
 
@@ -26,10 +27,28 @@ SQLAlchemy extension for the `pgvector` PostgreSQL extension. Provides the `Vect
 Configuration management via environment variables and `.env` files. Ensures no API keys, database URLs, or model parameters are hardcoded.
 
 ### anthropic
-Official Anthropic SDK for interacting with Claude. Used in the infrastructure layer as the LLM service implementation for answer generation.
+Official Anthropic SDK for interacting with Claude. Used in the infrastructure layer as one of the LLM service implementations for answer generation, streaming, and query rewriting.
+
+### openai
+Official OpenAI SDK. Used for the embedding service (`text-embedding-3-small`) and as an alternative LLM provider for answer generation.
 
 ### httpx
-Async HTTP client. Used for fetching remote documentation during the ingestion pipeline (DocumentLoaderService implementation).
+Async HTTP client. Used for fetching remote documentation during the ingestion pipeline (`HttpDocumentLoader` implementation).
+
+### tiktoken
+OpenAI's tokenizer library. Used by `OpenAIEmbeddingService` to count tokens per chunk during ingestion, which is stored as metadata on each `Chunk`.
+
+### langfuse
+LLM observability platform SDK. Used in the infrastructure layer to trace LLM calls, embeddings, and query rewrites via the wrapper pattern (`ObservedLLMService`, `ObservedEmbeddingService`). Opt-in via `LANGFUSE_ENABLED` — zero overhead when disabled.
+
+### pymupdf
+PDF content extraction library. Used by `FileDocumentLoader` to extract text from uploaded PDF files during ingestion.
+
+### python-multipart
+Required by FastAPI for parsing `multipart/form-data` requests. Enables the file upload endpoint (`POST /ingest/file`).
+
+### uuid-utils
+Provides UUID7 generation for entity IDs. UUID7 is time-ordered, which gives better database index locality than random UUID4.
 
 ## Dev Dependencies
 
@@ -50,3 +69,9 @@ Spins up real PostgreSQL + pgvector Docker containers for integration tests. Ens
 
 ### httpx (dev)
 Also listed as dev dependency because `httpx.AsyncClient` is used as the test client for FastAPI e2e tests (replaces `requests` in async contexts).
+
+### greenlet
+Required by SQLAlchemy for async operations in certain contexts. Listed explicitly to avoid implicit dependency resolution issues.
+
+### rich
+Terminal formatting library. Used for development tooling and test output readability.

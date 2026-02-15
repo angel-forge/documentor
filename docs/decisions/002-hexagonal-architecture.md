@@ -1,6 +1,7 @@
 # 002 — Hexagonal Architecture + DDD
 
 Date: 2026-02-11
+Updated: 2026-02-15
 
 ## Context
 
@@ -16,7 +17,7 @@ Adopt Hexagonal Architecture (Ports & Adapters) combined with lightweight DDD ta
 src/documentor/
 ├── domain/            # Entities, Value Objects, port interfaces
 ├── application/       # Use cases and DTOs
-├── infrastructure/    # Port implementations (DB, APIs, HTTP)
+├── infrastructure/    # Port implementations (DB, APIs, HTTP, observability)
 └── adapters/          # Primary adapter (FastAPI API)
 ```
 
@@ -30,7 +31,7 @@ src/documentor/
 ## DDD Patterns Used
 
 - **Entities**: `Document`, `Chunk` — have identity (`id`) and lifecycle.
-- **Value Objects**: `Question`, `Embedding`, `ChunkContent`, `Answer`, `SourceReference` — immutable, compared by value, use `@dataclass(frozen=True)`.
+- **Value Objects**: `Question`, `Embedding`, `ChunkContent`, `Answer`, `SourceReference`, `ConversationMessage` — immutable, compared by value, use `@dataclass(frozen=True)`.
 - **Repository interfaces**: `DocumentRepository`, `ChunkRepository` — defined as ABCs in domain, implemented in infrastructure.
 - **Service interfaces**: `LLMService`, `EmbeddingService`, `DocumentLoaderService` — same pattern as repositories.
 - **Unit of Work**: `UnitOfWork` — defined as an ABC in domain, implemented as `PgUnitOfWork` in infrastructure. Manages a shared session across repositories and controls transaction boundaries (`commit`/`rollback`).
@@ -40,7 +41,7 @@ src/documentor/
 A flat FastAPI app with SQLAlchemy models directly in the route handlers would work for a prototype. Hexagonal was chosen because:
 
 - **Testability**: Use cases are tested with mocks for all external services. Domain logic is tested with zero mocks.
-- **Swappability**: LLM provider (OpenAI/Anthropic) is swapped via configuration, not code changes.
+- **Swappability**: LLM provider (OpenAI/Anthropic) is swapped via configuration, not code changes. Observability wrappers are applied at DI time without touching the services themselves.
 - **Clarity**: Each layer has a single responsibility and a clear API boundary.
 
 ## What We Avoided
