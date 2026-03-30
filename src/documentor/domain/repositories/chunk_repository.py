@@ -13,4 +13,13 @@ class ChunkRepository(ABC):
     ) -> list[tuple[Chunk, float]]: ...
 
     @abstractmethod
+    async def search_hybrid(
+        self,
+        embedding: Embedding,
+        query_text: str,
+        top_k: int = 5,
+        language: str = "english",
+    ) -> list[tuple[Chunk, float]]: ...
+
+    @abstractmethod
     async def delete_by_document_id(self, document_id: str) -> None: ...

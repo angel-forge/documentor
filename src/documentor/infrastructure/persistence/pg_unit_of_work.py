@@ -11,13 +11,24 @@ from documentor.infrastructure.persistence.pg_document_repository import (
 
 
 class PgUnitOfWork(UnitOfWork):
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        search_language: str = "english",
+        rrf_k: int = 60,
+    ) -> None:
         self._session_factory = session_factory
+        self._search_language = search_language
+        self._rrf_k = rrf_k
 
     async def __aenter__(self) -> Self:
         self._session = self._session_factory()
         self.documents = PgDocumentRepository(self._session)
-        self.chunks = PgChunkRepository(self._session)
+        self.chunks = PgChunkRepository(
+            self._session,
+            search_language=self._search_language,
+            rrf_k=self._rrf_k,
+        )
         return self
 
     async def __aexit__(

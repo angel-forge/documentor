@@ -17,3 +17,5 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_host: str = "https://cloud.langfuse.com"
     langfuse_enabled: bool = False
+    search_language: str = "english"
+    rrf_k: int = 60

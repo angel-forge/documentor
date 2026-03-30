@@ -154,3 +154,270 @@ async def test_search_similar_should_return_empty_when_no_chunks(
     results = await repository.search_similar(query_embedding, top_k=5)
 
     assert results == []
+
+
+# ─── Hybrid search integration tests ─────────────────────────────────────────
+
+
+@pytest.fixture
+def hybrid_repository(session: AsyncSession) -> PgChunkRepository:
+    return PgChunkRepository(session, search_language="english", rrf_k=60)
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_should_return_results_combining_vector_and_fts_when_both_match(
+    hybrid_repository: PgChunkRepository,
+    document: Document,
+    session: AsyncSession,
+) -> None:
+    chunks = [
+        Chunk(
+            id="chunk-asyncsession",
+            document_id=document.id,
+            content=ChunkContent(
+                text="Use AsyncSession for async database operations", token_count=8
+            ),
+            position=0,
+            embedding=_make_embedding(0.8),
+        ),
+        Chunk(
+            id="chunk-other",
+            document_id=document.id,
+            content=ChunkContent(text="Unrelated topic about logging", token_count=5),
+            position=1,
+            embedding=_make_embedding(0.2),
+        ),
+    ]
+    await hybrid_repository.save_all(chunks)
+    await session.commit()
+
+    query_embedding = _make_embedding(0.9)
+    results = await hybrid_repository.search_hybrid(
+        query_embedding, "AsyncSession database", top_k=2
+    )
+
+    assert len(results) > 0
+    ids = [chunk.id for chunk, _ in results]
+    assert "chunk-asyncsession" in ids
+    for _, score in results:
+        assert 0.0 <= score <= 1.0
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_should_return_vector_only_results_when_no_fts_match(
+    hybrid_repository: PgChunkRepository,
+    document: Document,
+    session: AsyncSession,
+) -> None:
+    chunks = [
+        Chunk(
+            id="chunk-vec-1",
+            document_id=document.id,
+            content=ChunkContent(text="Python async programming patterns", token_count=5),
+            position=0,
+            embedding=_make_embedding(0.9),
+        ),
+        Chunk(
+            id="chunk-vec-2",
+            document_id=document.id,
+            content=ChunkContent(text="Database connection management", token_count=5),
+            position=1,
+            embedding=_make_embedding(0.5),
+        ),
+    ]
+    await hybrid_repository.save_all(chunks)
+    await session.commit()
+
+    query_embedding = _make_embedding(1.0)
+    # "xyzzy42" is a nonsense token that won't match any tsvector
+    results = await hybrid_repository.search_hybrid(
+        query_embedding, "xyzzy42nonexistent", top_k=2
+    )
+
+    # Vector results should still be returned even though FTS returns nothing
+    assert len(results) > 0
+    ids = {chunk.id for chunk, _ in results}
+    assert "chunk-vec-1" in ids
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_should_handle_stop_words_only_query_when_fts_empty(
+    hybrid_repository: PgChunkRepository,
+    document: Document,
+    session: AsyncSession,
+) -> None:
+    chunks = [
+        Chunk(
+            id="chunk-stopwords",
+            document_id=document.id,
+            content=ChunkContent(text="The quick brown fox jumps", token_count=6),
+            position=0,
+            embedding=_make_embedding(0.8),
+        ),
+    ]
+    await hybrid_repository.save_all(chunks)
+    await session.commit()
+
+    query_embedding = _make_embedding(0.9)
+    # "the a is" are all English stop words — plainto_tsquery returns empty query
+    results = await hybrid_repository.search_hybrid(
+        query_embedding, "the a is", top_k=5
+    )
+
+    # Should not raise; should return vector-only results
+    assert isinstance(results, list)
+    # The chunk can appear via vector search
+    if results:
+        for _, score in results:
+            assert 0.0 <= score <= 1.0
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_should_boost_exact_keyword_matches_when_text_matches_query(
+    hybrid_repository: PgChunkRepository,
+    document: Document,
+    session: AsyncSession,
+) -> None:
+    # chunk-keyword: exact match for "AsyncSession", moderate vector similarity
+    # chunk-semantic: high vector similarity, no keyword match
+    chunks = [
+        Chunk(
+            id="chunk-keyword",
+            document_id=document.id,
+            content=ChunkContent(
+                text="Use AsyncSession to open a database connection", token_count=9
+            ),
+            position=0,
+            embedding=_make_embedding(0.5),  # moderate vector similarity
+        ),
+        Chunk(
+            id="chunk-semantic",
+            document_id=document.id,
+            content=ChunkContent(
+                text="Open a session to connect to the database backend", token_count=10
+            ),
+            position=1,
+            embedding=_make_embedding(0.95),  # high vector similarity
+        ),
+    ]
+    await hybrid_repository.save_all(chunks)
+    await session.commit()
+
+    # Query embedding close to chunk-semantic, but text query targets AsyncSession
+    query_embedding = _make_embedding(1.0)
+    results = await hybrid_repository.search_hybrid(
+        query_embedding, "AsyncSession", top_k=2
+    )
+
+    assert len(results) == 2
+    scores_by_id = {chunk.id: score for chunk, score in results}
+    # chunk-keyword should have higher RRF score because it appears in FTS results
+    # while chunk-semantic only appears in vector results
+    assert scores_by_id["chunk-keyword"] > scores_by_id["chunk-semantic"]
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_should_respect_top_k_when_many_candidates(
+    hybrid_repository: PgChunkRepository,
+    document: Document,
+    session: AsyncSession,
+) -> None:
+    chunks = [
+        Chunk(
+            id=f"chunk-many-{i}",
+            document_id=document.id,
+            content=ChunkContent(
+                text=f"Python programming tutorial number {i}", token_count=6
+            ),
+            position=i,
+            embedding=_make_embedding(float(i) / 10),
+        )
+        for i in range(8)
+    ]
+    await hybrid_repository.save_all(chunks)
+    await session.commit()
+
+    query_embedding = _make_embedding(1.0)
+    results = await hybrid_repository.search_hybrid(
+        query_embedding, "Python programming", top_k=3
+    )
+
+    assert len(results) <= 3
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_should_return_empty_when_no_chunks_exist(
+    hybrid_repository: PgChunkRepository,
+) -> None:
+    query_embedding = _make_embedding(1.0)
+    results = await hybrid_repository.search_hybrid(
+        query_embedding, "anything", top_k=5
+    )
+
+    assert results == []
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_should_return_normalized_scores_in_unit_interval(
+    hybrid_repository: PgChunkRepository,
+    document: Document,
+    session: AsyncSession,
+) -> None:
+    chunks = [
+        Chunk(
+            id="chunk-norm",
+            document_id=document.id,
+            content=ChunkContent(
+                text="SQLAlchemy ORM session management patterns", token_count=7
+            ),
+            position=0,
+            embedding=_make_embedding(0.9),
+        ),
+    ]
+    await hybrid_repository.save_all(chunks)
+    await session.commit()
+
+    query_embedding = _make_embedding(1.0)
+    results = await hybrid_repository.search_hybrid(
+        query_embedding, "SQLAlchemy session", top_k=5
+    )
+
+    assert len(results) > 0
+    for _, score in results:
+        assert 0.0 <= score <= 1.0, f"Score {score} out of [0, 1] range"
+
+
+@pytest.mark.asyncio
+async def test_search_hybrid_should_not_regress_search_similar_when_called_directly(
+    hybrid_repository: PgChunkRepository,
+    document: Document,
+    session: AsyncSession,
+) -> None:
+    """SC-13: search_similar must remain functional after hybrid search is added."""
+    chunks = [
+        Chunk(
+            id="chunk-compat-close",
+            document_id=document.id,
+            content=ChunkContent(text="Close chunk for compatibility test", token_count=6),
+            position=0,
+            embedding=_make_embedding(0.9),
+        ),
+        Chunk(
+            id="chunk-compat-far",
+            document_id=document.id,
+            content=ChunkContent(text="Far chunk for compatibility test", token_count=6),
+            position=1,
+            embedding=_make_embedding(0.1),
+        ),
+    ]
+    await hybrid_repository.save_all(chunks)
+    await session.commit()
+
+    query_embedding = _make_embedding(1.0)
+    results = await hybrid_repository.search_similar(query_embedding, top_k=2)
+
+    assert len(results) == 2
+    assert results[0][0].id == "chunk-compat-close"
+    assert results[1][0].id == "chunk-compat-far"
+    for _, score in results:
+        assert 0.0 <= score <= 1.0

@@ -11,7 +11,7 @@ from documentor.domain.unit_of_work import UnitOfWork
 from documentor.application.dtos import AnswerDTO, AskQuestionInput
 
 
-MIN_RELEVANCE_SCORE = 0.3
+MIN_HYBRID_SCORE = 0.3
 
 
 class AskQuestion:
@@ -20,10 +20,12 @@ class AskQuestion:
         embedding_service: EmbeddingService,
         llm_service: LLMService,
         uow: UnitOfWork,
+        search_language: str = "english",
     ) -> None:
         self._embedding_service = embedding_service
         self._llm_service = llm_service
         self._uow = uow
+        self._search_language = search_language
 
     async def _get_search_query(
         self,
@@ -44,11 +46,13 @@ class AskQuestion:
         embedding = await self._embedding_service.embed(search_query)
 
         async with self._uow:
-            results = await self._uow.chunks.search_similar(embedding, top_k=5)
+            results = await self._uow.chunks.search_hybrid(
+                embedding, search_query, top_k=5, language=self._search_language
+            )
             results = [
                 (chunk, score)
                 for chunk, score in results
-                if score >= MIN_RELEVANCE_SCORE
+                if score >= MIN_HYBRID_SCORE
             ]
 
             if not results:
@@ -96,11 +100,13 @@ class AskQuestion:
         embedding = await self._embedding_service.embed(search_query)
 
         async with self._uow:
-            results = await self._uow.chunks.search_similar(embedding, top_k=5)
+            results = await self._uow.chunks.search_hybrid(
+                embedding, search_query, top_k=5, language=self._search_language
+            )
             results = [
                 (chunk, score)
                 for chunk, score in results
-                if score >= MIN_RELEVANCE_SCORE
+                if score >= MIN_HYBRID_SCORE
             ]
 
             if not results:

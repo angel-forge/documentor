@@ -1,12 +1,22 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Computed, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.types import UserDefinedType
 
 from documentor.infrastructure.database import Base
 
 EMBEDDING_DIMENSION = 1536
+
+
+class TSVector(UserDefinedType):  # type: ignore[type-arg]
+    """SQLAlchemy type for PostgreSQL tsvector."""
+
+    cache_ok = True
+
+    def get_col_spec(self) -> str:
+        return "tsvector"
 
 
 class DocumentModel(Base):
@@ -33,6 +43,11 @@ class ChunkModel(Base):
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     embedding = mapped_column(Vector(EMBEDDING_DIMENSION), nullable=True)
+    search_vector: Mapped[str | None] = mapped_column(
+        TSVector(),
+        Computed("to_tsvector('english', text)", persisted=True),
+        nullable=True,
+    )
 
     __table_args__ = (
         Index(
@@ -41,5 +56,10 @@ class ChunkModel(Base):
             postgresql_using="hnsw",
             postgresql_with={"m": 16, "ef_construction": 64},
             postgresql_ops={"embedding": "vector_cosine_ops"},
+        ),
+        Index(
+            "ix_chunks_search_vector",
+            "search_vector",
+            postgresql_using="gin",
         ),
     )

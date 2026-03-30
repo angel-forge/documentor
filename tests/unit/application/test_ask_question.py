@@ -50,7 +50,7 @@ def llm_service() -> AsyncMock:
 def uow(sample_chunk: Chunk, sample_document: Document) -> AsyncMock:
     mock = AsyncMock()
     mock.__aenter__.return_value = mock
-    mock.chunks.search_similar.return_value = [(sample_chunk, 0.95)]
+    mock.chunks.search_hybrid.return_value = [(sample_chunk, 0.95)]
     mock.documents.find_by_ids.return_value = {
         sample_chunk.document_id: sample_document
     }
@@ -85,7 +85,7 @@ async def test_execute_should_return_answer_with_sources_when_relevant_chunks_ex
 
 
 @pytest.mark.asyncio
-async def test_execute_should_embed_question_and_search_chunks_when_asking(
+async def test_execute_should_call_search_hybrid_when_asking(
     use_case: AskQuestion,
     embedding_service: AsyncMock,
     uow: AsyncMock,
@@ -95,10 +95,36 @@ async def test_execute_should_embed_question_and_search_chunks_when_asking(
     await use_case.execute(input_dto)
 
     embedding_service.embed.assert_awaited_once_with("What is Python?")
-    uow.chunks.search_similar.assert_awaited_once()
-    call_args = uow.chunks.search_similar.call_args
+    uow.chunks.search_hybrid.assert_awaited_once()
+    call_args = uow.chunks.search_hybrid.call_args
     assert call_args[0][0] == Embedding.from_list([0.1, 0.2, 0.3])
     assert call_args[1]["top_k"] == 5
+
+
+@pytest.mark.asyncio
+async def test_execute_should_pass_search_language_when_configured(
+    embedding_service: AsyncMock,
+    llm_service: AsyncMock,
+    sample_chunk: Chunk,
+    sample_document: Document,
+) -> None:
+    uow = AsyncMock()
+    uow.__aenter__.return_value = uow
+    uow.chunks.search_hybrid.return_value = [(sample_chunk, 0.95)]
+    uow.documents.find_by_ids.return_value = {"doc-1": sample_document}
+
+    use_case = AskQuestion(
+        embedding_service=embedding_service,
+        llm_service=llm_service,
+        uow=uow,
+        search_language="spanish",
+    )
+    input_dto = AskQuestionInput(question_text="¿Qué es Python?")
+
+    await use_case.execute(input_dto)
+
+    call_kwargs = uow.chunks.search_hybrid.call_args[1]
+    assert call_kwargs["language"] == "spanish"
 
 
 @pytest.mark.asyncio
@@ -131,7 +157,7 @@ async def test_execute_should_return_no_results_message_when_no_chunks_found(
 ) -> None:
     uow = AsyncMock()
     uow.__aenter__.return_value = uow
-    uow.chunks.search_similar.return_value = []
+    uow.chunks.search_hybrid.return_value = []
 
     use_case = AskQuestion(
         embedding_service=embedding_service,
@@ -167,7 +193,7 @@ async def test_execute_should_discard_low_relevance_chunks_when_below_threshold(
 
     uow = AsyncMock()
     uow.__aenter__.return_value = uow
-    uow.chunks.search_similar.return_value = [(high_chunk, 0.8), (low_chunk, 0.1)]
+    uow.chunks.search_hybrid.return_value = [(high_chunk, 0.8), (low_chunk, 0.1)]
     uow.documents.find_by_ids.return_value = {"doc-1": sample_document}
 
     use_case = AskQuestion(
@@ -196,7 +222,7 @@ async def test_execute_should_return_no_results_when_all_chunks_below_threshold(
 
     uow = AsyncMock()
     uow.__aenter__.return_value = uow
-    uow.chunks.search_similar.return_value = [(low_chunk, 0.2)]
+    uow.chunks.search_hybrid.return_value = [(low_chunk, 0.2)]
 
     use_case = AskQuestion(
         embedding_service=embedding_service,
@@ -259,7 +285,7 @@ async def test_execute_stream_should_yield_no_results_when_no_chunks_found(
 ) -> None:
     uow = AsyncMock()
     uow.__aenter__.return_value = uow
-    uow.chunks.search_similar.return_value = []
+    uow.chunks.search_hybrid.return_value = []
 
     use_case = AskQuestion(
         embedding_service=embedding_service,

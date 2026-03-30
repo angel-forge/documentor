@@ -63,7 +63,11 @@ def _build_ingest_use_case(
     return IngestDocumentation(
         loader=loader,
         embedding_service=embedding_service,
-        uow=PgUnitOfWork(session_factory),
+        uow=PgUnitOfWork(
+            session_factory,
+            search_language=settings.search_language,
+            rrf_k=settings.rrf_k,
+        ),
     )
 
 
@@ -109,7 +113,12 @@ def get_ask_question(
     return AskQuestion(
         embedding_service=embedding_service,
         llm_service=llm_service,
-        uow=PgUnitOfWork(session_factory),
+        uow=PgUnitOfWork(
+            session_factory,
+            search_language=settings.search_language,
+            rrf_k=settings.rrf_k,
+        ),
+        search_language=settings.search_language,
     )
 
 
