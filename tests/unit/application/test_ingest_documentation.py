@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
@@ -296,6 +296,64 @@ async def test_execute_should_raise_error_when_loaded_content_is_empty(
         )
 
     uow.documents.save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_should_create_chunks_from_markdown_content(
+    loader: AsyncMock,
+    embedding_service: AsyncMock,
+    uow: AsyncMock,
+) -> None:
+    """Markdown content with two ## sections produces chunks with heading context prefix."""
+    # Two sections of ~60 words each — well under chunk_size=500, will merge into 1
+    section_body = " ".join(["word"] * 60)
+    markdown_content = (
+        f"## Section One\n\n{section_body}\n\n"
+        f"## Section Two\n\n{section_body}\n"
+    )
+    loader.load.return_value = LoadedDocument(
+        content=markdown_content,
+        title="Markdown Doc",
+        source_type=SourceType.URL,
+    )
+    embedding_service.embed_batch.side_effect = lambda texts: [
+        Embedding.from_list([0.1, 0.2, 0.3]) for _ in texts
+    ]
+    use_case = IngestDocumentation(
+        loader=loader,
+        embedding_service=embedding_service,
+        uow=uow,
+    )
+
+    result = await use_case.execute(
+        IngestDocumentationInput(source="https://example.com/markdown")
+    )
+
+    # At least one chunk produced
+    assert result.chunks_created >= 1
+    saved_chunks = uow.chunks.save_all.call_args[0][0]
+    # At least one chunk's text should contain a section heading (heading context prefix)
+    all_texts = [c.content.text for c in saved_chunks]
+    assert any("## Section" in t for t in all_texts)
+
+
+@pytest.mark.asyncio
+async def test_execute_should_pass_token_counter_to_chunking(
+    use_case: IngestDocumentation,
+    embedding_service: AsyncMock,
+) -> None:
+    """Verify the use case passes embedding_service.count_tokens as token_counter."""
+    with patch(
+        "documentor.application.use_cases.ingest_documentation.split_text_into_chunks"
+    ) as mock_split:
+        mock_split.return_value = ["chunk one"]
+
+        input_dto = IngestDocumentationInput(source="https://example.com/docs")
+        await use_case.execute(input_dto)
+
+        mock_split.assert_called_once()
+        _, kwargs = mock_split.call_args
+        assert kwargs.get("token_counter") is embedding_service.count_tokens
 
 
 @pytest.mark.asyncio

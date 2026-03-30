@@ -42,7 +42,10 @@ class IngestDocumentation:
 
             loaded = await self._loader.load(input.source)
 
-            text_chunks = split_text_into_chunks(loaded.content)
+            text_chunks = split_text_into_chunks(
+                loaded.content,
+                token_counter=self._embedding_service.count_tokens,
+            )
 
             if not text_chunks:
                 raise InvalidDocumentError(
