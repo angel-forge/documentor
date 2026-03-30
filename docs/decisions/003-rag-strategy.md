@@ -1,7 +1,7 @@
 # 003 — RAG Strategy
 
 Date: 2026-02-11
-Updated: 2026-02-15
+Updated: 2026-03-30
 
 ## Context
 
@@ -14,7 +14,7 @@ Implement a conversational RAG (Retrieval-Augmented Generation) pipeline with ve
 ## Ingestion Pipeline
 
 1. **Load** — Fetch content from a URL (`HttpDocumentLoader`) or extract from an uploaded file (`FileDocumentLoader`). Supported file formats: `.txt`, `.md`, `.html`, `.rst`, `.pdf`. PDF extraction uses PyMuPDF. File uploads are validated for extension, size (10 MB max), and content (magic bytes for PDF, UTF-8 for text).
-2. **Chunk** — Split text into ~500-word chunks with ~50-word overlap. Word-boundary splitting (no mid-sentence cuts).
+2. **Chunk** — Split text using structure-aware markdown chunking (see [Chunking Strategy](#chunking-strategy) below). Token count is measured via the embedding service's `count_tokens` callable, so chunk size is in tokens rather than words.
 3. **Embed** — Generate embeddings for each chunk using OpenAI's `text-embedding-3-small` (1536 dimensions). Token count is stored per chunk as metadata.
 4. **Store** — Save the document metadata and chunks with embeddings to PostgreSQL + pgvector, atomically via Unit of Work.
 
@@ -24,7 +24,7 @@ Duplicate detection is built in — re-ingesting an existing source can be rejec
 
 1. **Rewrite** (conditional) — If the conversation has history, a lightweight LLM rewrites the follow-up question into a standalone search query. First-turn questions skip this step entirely. See [Query Rewriting](#query-rewriting) below.
 2. **Embed** — Generate an embedding for the search query (rewritten or original).
-3. **Search** — Cosine similarity search via pgvector, returning top-k (default 5) most relevant chunks. Results below a minimum relevance score (0.3) are filtered out.
+3. **Search** — Hybrid search combining vector search (pgvector cosine similarity) and full-text search (PostgreSQL `tsvector` + GIN index), merged via Reciprocal Rank Fusion (RRF). Returns top-k (default 5) chunks. Results below a minimum normalized RRF score (0.3) are filtered out.
 4. **Generate** — Pass the question, conversation history, and retrieved chunks to the LLM with a system prompt that constrains answers to the provided context.
 5. **Return** — Answer text + source references with document titles and relevance scores.
 
@@ -43,9 +43,18 @@ When conversation history is present, the `AskQuestion` use case calls `LLMServi
 
 ## Chunking Strategy
 
-- **Fixed word count** (~500 words) with overlap (~50 words) rather than semantic splitting.
-- Overlap ensures context isn't lost at chunk boundaries.
-- Simple and deterministic. Semantic splitting (by headings, paragraphs) can be added later if needed.
+Structure-aware markdown chunking is used when content contains ATX headings; plain text falls back to word-boundary splitting.
+
+**Markdown path** (triggered by any `# heading` in the content):
+
+1. A line-by-line state machine parses the text into sections, where each ATX heading starts a new section. Content inside fenced code blocks is kept intact and never split at a heading boundary within the block.
+2. Each section's heading ancestry (the full chain from document root to the section's parent heading) is prepended to every chunk produced from that section. This means every chunk carries its location in the document hierarchy as context.
+3. Large sections are split at paragraph boundaries first, then line boundaries, then word boundaries as a last resort. Code blocks are treated as atomic units — they are never split mid-block even if they exceed the chunk size limit.
+4. Adjacent small sections are greedily merged up to the chunk size before emitting, reducing unnecessary chunk fragmentation.
+
+**Plain-text fallback**: word-boundary splitting with configurable size (~500 tokens) and overlap (~50 tokens). No mid-word cuts.
+
+The `split_text_into_chunks` function accepts an optional `token_counter` callable. When provided (as it is during ingestion, via `EmbeddingService.count_tokens`), sizes are measured in tokens rather than words, so the chunk size limit is consistent with what the embedding model actually processes.
 
 ## Why pgvector
 
@@ -58,8 +67,12 @@ When conversation history is present, the `AskQuestion` use case calls `LLMServi
 - `text-embedding-3-small` chosen for cost-efficiency and good quality at 1536 dimensions.
 - Configurable via `EMBEDDING_MODEL` and `EMBEDDING_DIMENSION` environment variables.
 
+## Per-Document Language Support
+
+Each `Chunk` carries a `language` field (default `"english"`) that maps to a PostgreSQL FTS configuration. The full-text search leg of the hybrid pipeline uses this value when building `tsvector` columns and calling `plainto_tsquery`. PostgreSQL ships with 23 built-in FTS configurations (e.g., `english`, `spanish`, `french`, `german`), so multi-language corpora are supported without any additional infrastructure. The language is set at ingestion time via the `IngestDocumentationInput.language` field and propagated to every chunk produced from that document.
+
 ## What We Avoided
 
-- **Re-ranking**: Not implemented. Top-k cosine similarity with a minimum score threshold is sufficient for now.
-- **Hybrid search** (keyword + vector): Not needed until retrieval quality proves insufficient.
-- **Chunk metadata enrichment** (headers, hierarchy): Chunks store raw text only. Can be added if context quality is an issue.
+- **Re-ranking**: Not implemented. RRF-merged results with a minimum score threshold are sufficient for now.
+- **Hybrid search** (keyword + vector): ~~Not needed~~ — **implemented** via `search_hybrid` in `PgChunkRepository`, combining pgvector cosine similarity and PostgreSQL FTS merged with RRF.
+- **Chunk metadata enrichment** (headers, hierarchy): ~~Chunks store raw text only~~ — **implemented**. The structured markdown chunking path prepends the heading context chain to every chunk.
