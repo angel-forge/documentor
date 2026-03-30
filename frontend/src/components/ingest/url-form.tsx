@@ -11,12 +11,14 @@ import {
 } from "@/components/ui/select"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import type { ApiError } from "@/api/client"
+import { SUPPORTED_LANGUAGES } from "@/lib/languages"
 
 interface UrlFormProps {
   onSubmit: (
     source: string,
     onDuplicate: "reject" | "skip" | "replace",
     title?: string,
+    language?: string,
   ) => void
   isPending: boolean
   error: ApiError | null
@@ -25,6 +27,7 @@ interface UrlFormProps {
 export function UrlForm({ onSubmit, isPending, error }: UrlFormProps) {
   const [url, setUrl] = useState("")
   const [title, setTitle] = useState("")
+  const [language, setLanguage] = useState("english")
   const [onDuplicate, setOnDuplicate] = useState<"reject" | "skip" | "replace">(
     "reject",
   )
@@ -33,7 +36,7 @@ export function UrlForm({ onSubmit, isPending, error }: UrlFormProps) {
     e.preventDefault()
     const trimmed = url.trim()
     if (!trimmed) return
-    onSubmit(trimmed, onDuplicate, title.trim() || undefined)
+    onSubmit(trimmed, onDuplicate, title.trim() || undefined, language)
   }
 
   return (
@@ -63,6 +66,27 @@ export function UrlForm({ onSubmit, isPending, error }: UrlFormProps) {
           placeholder="e.g. React Router v7 Docs"
           disabled={isPending}
         />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="language" className="text-sm font-medium">
+          Document language
+        </label>
+        <Select
+          value={language}
+          onValueChange={setLanguage}
+        >
+          <SelectTrigger id="language">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <SelectItem key={lang.value} value={lang.value}>
+                {lang.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-2">

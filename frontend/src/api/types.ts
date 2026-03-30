@@ -21,6 +21,7 @@ export interface DocumentResponse {
   source_type: string
   created_at: string
   chunk_count: number
+  language: string
 }
 
 export interface IngestResponse {
@@ -42,6 +43,7 @@ export interface IngestUrlRequest {
   source: string
   title?: string
   on_duplicate: "reject" | "skip" | "replace"
+  language: string
 }
 
 export interface ApiErrorResponse {

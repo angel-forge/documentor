@@ -9,10 +9,12 @@ export function ingestFile(
   file: File,
   onDuplicate: "reject" | "skip" | "replace",
   title?: string,
+  language: string = "english",
 ): Promise<IngestResponse> {
   const formData = new FormData()
   formData.append("file", file)
   if (title) formData.append("title", title)
   formData.append("on_duplicate", onDuplicate)
+  formData.append("language", language)
   return apiPostForm<IngestResponse>("/ingest/file", formData)
 }

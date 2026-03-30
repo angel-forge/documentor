@@ -59,6 +59,7 @@ class IngestDocumentation:
                 title=title,
                 source_type=loaded.source_type,
                 chunk_count=len(text_chunks),
+                language=input.language,
             )
 
             chunks: list[Chunk] = []
@@ -69,6 +70,7 @@ class IngestDocumentation:
                     document_id=document.id,
                     content=content,
                     position=position,
+                    language=document.language,
                 )
                 chunks.append(chunk)
 

@@ -57,6 +57,7 @@ export function DocumentTable({
               <TableHead>Title</TableHead>
               <TableHead className="hidden md:table-cell">Source</TableHead>
               <TableHead>Type</TableHead>
+              <TableHead className="hidden sm:table-cell">Language</TableHead>
               <TableHead className="text-right">Chunks</TableHead>
               <TableHead className="hidden sm:table-cell">Date</TableHead>
             </TableRow>
@@ -70,6 +71,9 @@ export function DocumentTable({
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline">{doc.source_type}</Badge>
+                </TableCell>
+                <TableCell className="hidden sm:table-cell capitalize">
+                  {doc.language}
                 </TableCell>
                 <TableCell className="text-right">{doc.chunk_count}</TableCell>
                 <TableCell className="hidden sm:table-cell">

@@ -41,6 +41,7 @@ class Chunk:
     content: ChunkContent
     position: int
     embedding: Embedding | None = None
+    language: str = "english"
 
     @classmethod
     def create(
@@ -48,12 +49,14 @@ class Chunk:
         document_id: str,
         content: ChunkContent,
         position: int,
+        language: str = "english",
     ) -> "Chunk":
         return cls(
             id=str(uuid7()),
             document_id=document_id,
             content=content,
             position=position,
+            language=language,
         )
 
     def set_embedding(self, embedding: Embedding) -> None:

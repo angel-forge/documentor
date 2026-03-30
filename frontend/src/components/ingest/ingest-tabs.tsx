@@ -19,8 +19,8 @@ export function IngestTabs() {
 
       <TabsContent value="url" className="space-y-4">
         <UrlForm
-          onSubmit={(source, onDuplicate, title) =>
-            urlMutation.mutate({ source, title, on_duplicate: onDuplicate })
+          onSubmit={(source, onDuplicate, title, language) =>
+            urlMutation.mutate({ source, title, on_duplicate: onDuplicate, language: language ?? "english" })
           }
           isPending={urlMutation.isPending}
           error={(urlMutation.error as ApiError) ?? null}
@@ -30,8 +30,8 @@ export function IngestTabs() {
 
       <TabsContent value="file" className="space-y-4">
         <FileForm
-          onSubmit={(file, onDuplicate, title) =>
-            fileMutation.mutate({ file, onDuplicate, title })
+          onSubmit={(file, onDuplicate, title, language) =>
+            fileMutation.mutate({ file, onDuplicate, title, language })
           }
           isPending={fileMutation.isPending}
           error={(fileMutation.error as ApiError) ?? null}

@@ -51,6 +51,22 @@ class TestChunk:
         chunk = Chunk.create(document_id="doc-1", content=content, position=0)
         assert chunk.has_embedding() is False
 
+    def test_create_should_set_language_when_provided(self) -> None:
+        content = ChunkContent(text="Hello world", token_count=2)
+        chunk = Chunk.create(document_id="doc-1", content=content, position=0, language="french")
+        assert chunk.language == "french"
+
+    def test_create_should_default_language_to_english_when_not_provided(self) -> None:
+        content = ChunkContent(text="Hello world", token_count=2)
+        chunk = Chunk.create(document_id="doc-1", content=content, position=0)
+        assert chunk.language == "english"
+
+    def test_language_field_is_mutable(self) -> None:
+        content = ChunkContent(text="Hello world", token_count=2)
+        chunk = Chunk.create(document_id="doc-1", content=content, position=0)
+        chunk.language = "spanish"
+        assert chunk.language == "spanish"
+
 
 class TestSplitTextIntoChunks:
     def test_should_return_empty_list_when_text_is_empty(self) -> None:

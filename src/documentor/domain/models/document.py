@@ -12,6 +12,34 @@ class SourceType(StrEnum):
     TEXT = "text"
 
 
+SUPPORTED_FTS_LANGUAGES: frozenset[str] = frozenset({
+    "simple",
+    "arabic",
+    "danish",
+    "dutch",
+    "english",
+    "finnish",
+    "french",
+    "german",
+    "greek",
+    "hungarian",
+    "indonesian",
+    "irish",
+    "italian",
+    "lithuanian",
+    "nepali",
+    "norwegian",
+    "portuguese",
+    "romanian",
+    "russian",
+    "spanish",
+    "swedish",
+    "tamil",
+    "turkish",
+    "yiddish",
+})
+
+
 @dataclass
 class Document:
     id: str
@@ -20,6 +48,7 @@ class Document:
     source_type: SourceType
     created_at: datetime
     chunk_count: int = 0
+    language: str = "english"
 
     def __post_init__(self) -> None:
         if not self.source or not self.source.strip():
@@ -28,6 +57,11 @@ class Document:
             raise InvalidDocumentError("Document title cannot be empty")
         if self.created_at.tzinfo is None:
             raise InvalidDocumentError("created_at must be timezone-aware")
+        if self.language not in SUPPORTED_FTS_LANGUAGES:
+            raise InvalidDocumentError(
+                f"Unsupported FTS language: {self.language}. "
+                f"Supported: {sorted(SUPPORTED_FTS_LANGUAGES)}"
+            )
 
     @classmethod
     def create(
@@ -36,6 +70,7 @@ class Document:
         title: str,
         source_type: SourceType,
         chunk_count: int = 0,
+        language: str = "english",
     ) -> "Document":
         return cls(
             id=str(uuid7()),
@@ -44,4 +79,5 @@ class Document:
             source_type=source_type,
             created_at=datetime.now(UTC),
             chunk_count=chunk_count,
+            language=language,
         )

@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Computed, DateTime, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import UserDefinedType
 
@@ -30,6 +30,7 @@ class DocumentModel(Base):
         DateTime(timezone=True), nullable=False
     )
     chunk_count: Mapped[int] = mapped_column(Integer, default=0)
+    language: Mapped[str] = mapped_column(String, nullable=False, server_default="english")
 
 
 class ChunkModel(Base):
@@ -43,9 +44,9 @@ class ChunkModel(Base):
     token_count: Mapped[int] = mapped_column(Integer, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
     embedding = mapped_column(Vector(EMBEDDING_DIMENSION), nullable=True)
+    language: Mapped[str] = mapped_column(String, nullable=False, server_default="english")
     search_vector: Mapped[str | None] = mapped_column(
         TSVector(),
-        Computed("to_tsvector('english', text)", persisted=True),
         nullable=True,
     )
 

@@ -60,6 +60,7 @@ def _to_model(document: Document) -> DocumentModel:
         source_type=document.source_type.value,
         created_at=document.created_at,
         chunk_count=document.chunk_count,
+        language=document.language,
     )
 
 
@@ -71,4 +72,5 @@ def _to_entity(model: DocumentModel) -> Document:
         source_type=SourceType(model.source_type),
         created_at=model.created_at,
         chunk_count=model.chunk_count,
+        language=model.language,
     )

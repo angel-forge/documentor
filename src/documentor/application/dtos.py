@@ -12,6 +12,7 @@ class IngestDocumentationInput:
     source: str
     title: str | None = None
     on_duplicate: Literal["reject", "skip", "replace"] = "reject"
+    language: str = "english"
 
 
 @dataclass(frozen=True)
@@ -58,6 +59,7 @@ class DocumentDTO:
     source_type: str
     created_at: datetime
     chunk_count: int
+    language: str
 
     @staticmethod
     def from_entity(document: Document) -> "DocumentDTO":
@@ -68,6 +70,7 @@ class DocumentDTO:
             source_type=str(document.source_type),
             created_at=document.created_at,
             chunk_count=document.chunk_count,
+            language=document.language,
         )
 
 

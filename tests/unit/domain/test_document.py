@@ -1,7 +1,11 @@
 import pytest
 
 from documentor.domain.exceptions import InvalidDocumentError
-from documentor.domain.models.document import Document, SourceType
+from documentor.domain.models.document import (
+    SUPPORTED_FTS_LANGUAGES,
+    Document,
+    SourceType,
+)
 
 
 class TestDocument:
@@ -36,3 +40,39 @@ class TestDocument:
                 title="   ",
                 source_type=SourceType.URL,
             )
+
+    def test_create_should_set_language_when_provided(self) -> None:
+        doc = Document.create(
+            source="https://docs.example.com",
+            title="Docs",
+            source_type=SourceType.URL,
+            language="spanish",
+        )
+        assert doc.language == "spanish"
+
+    def test_create_should_default_language_to_english_when_not_provided(self) -> None:
+        doc = Document.create(
+            source="https://docs.example.com",
+            title="Docs",
+            source_type=SourceType.URL,
+        )
+        assert doc.language == "english"
+
+    def test_init_should_raise_when_language_unsupported(self) -> None:
+        with pytest.raises(InvalidDocumentError, match="klingon"):
+            Document.create(
+                source="https://docs.example.com",
+                title="Docs",
+                source_type=SourceType.URL,
+                language="klingon",
+            )
+
+    @pytest.mark.parametrize("language", sorted(SUPPORTED_FTS_LANGUAGES))
+    def test_init_should_accept_all_supported_languages(self, language: str) -> None:
+        doc = Document.create(
+            source="https://docs.example.com",
+            title="Docs",
+            source_type=SourceType.URL,
+            language=language,
+        )
+        assert doc.language == language

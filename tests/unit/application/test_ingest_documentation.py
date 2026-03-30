@@ -374,3 +374,48 @@ async def test_execute_should_raise_error_when_loaded_content_is_whitespace(
         )
 
     uow.documents.save.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_execute_should_propagate_language_to_document_when_provided(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+) -> None:
+    input_dto = IngestDocumentationInput(
+        source="https://example.com/docs", language="spanish"
+    )
+
+    await use_case.execute(input_dto)
+
+    saved_doc = uow.documents.save.call_args[0][0]
+    assert saved_doc.language == "spanish"
+
+
+@pytest.mark.asyncio
+async def test_execute_should_default_language_to_english_when_not_provided(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+) -> None:
+    input_dto = IngestDocumentationInput(source="https://example.com/docs")
+
+    await use_case.execute(input_dto)
+
+    saved_doc = uow.documents.save.call_args[0][0]
+    assert saved_doc.language == "english"
+
+
+@pytest.mark.asyncio
+async def test_execute_should_set_language_on_all_chunks_when_language_provided(
+    use_case: IngestDocumentation,
+    uow: AsyncMock,
+) -> None:
+    input_dto = IngestDocumentationInput(
+        source="https://example.com/docs", language="french"
+    )
+
+    await use_case.execute(input_dto)
+
+    saved_chunks = uow.chunks.save_all.call_args[0][0]
+    assert len(saved_chunks) > 0
+    for chunk in saved_chunks:
+        assert chunk.language == "french"

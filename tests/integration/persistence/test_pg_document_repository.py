@@ -115,3 +115,23 @@ async def test_list_all_should_return_all_saved_documents(
     ids = {d.id for d in documents}
     assert doc1.id in ids
     assert doc2.id in ids
+
+
+@pytest.mark.asyncio
+async def test_save_should_persist_language_when_document_has_language(
+    repository: PgDocumentRepository,
+    session: AsyncSession,
+) -> None:
+    document = Document.create(
+        source="https://example.com/german-docs",
+        title="German Docs",
+        source_type=SourceType.URL,
+        language="german",
+    )
+
+    await repository.save(document)
+    await session.commit()
+
+    found = await repository.find_by_id(document.id)
+    assert found is not None
+    assert found.language == "german"

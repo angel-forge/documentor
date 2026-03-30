@@ -32,6 +32,7 @@ def mock_ingest_documentation() -> AsyncMock:
             source_type="url",
             created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
             chunk_count=3,
+            language="english",
         ),
         chunks_created=3,
     )
@@ -66,6 +67,7 @@ def mock_ingest_file_documentation() -> MagicMock:
             source_type="file",
             created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
             chunk_count=2,
+            language="english",
         ),
         chunks_created=2,
     )
@@ -85,6 +87,7 @@ def mock_list_documents() -> AsyncMock:
             source_type="url",
             created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
             chunk_count=3,
+            language="english",
         ),
     ]
     return mock

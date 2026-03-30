@@ -4,6 +4,8 @@ from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
 
+from documentor.domain.models.document import SUPPORTED_FTS_LANGUAGES
+
 
 class ConversationMessageSchema(BaseModel):
     role: Literal["user", "assistant"]
@@ -19,6 +21,7 @@ class IngestDocumentRequest(BaseModel):
     source: str
     title: str | None = None
     on_duplicate: Literal["reject", "skip", "replace"] = "reject"
+    language: str = "english"
 
     @field_validator("source")
     @classmethod
@@ -29,6 +32,17 @@ class IngestDocumentRequest(BaseModel):
         if not parsed.netloc:
             raise ValueError("Source must include a valid hostname")
         return v
+
+    @field_validator("language")
+    @classmethod
+    def language_must_be_supported(cls, v: str) -> str:
+        normalized = v.lower()
+        if normalized not in SUPPORTED_FTS_LANGUAGES:
+            raise ValueError(
+                f"Unsupported language: {v}. "
+                f"Supported: {sorted(SUPPORTED_FTS_LANGUAGES)}"
+            )
+        return normalized
 
 
 class SourceReferenceResponse(BaseModel):
@@ -50,6 +64,7 @@ class DocumentResponse(BaseModel):
     source_type: str
     created_at: datetime
     chunk_count: int
+    language: str
 
 
 class IngestDocumentResponse(BaseModel):

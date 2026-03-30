@@ -159,6 +159,7 @@ def _to_model(chunk: Chunk) -> ChunkModel:
         token_count=chunk.content.token_count,
         position=chunk.position,
         embedding=list(chunk.embedding.vector) if chunk.embedding else None,
+        language=chunk.language,
     )
 
 
@@ -172,4 +173,5 @@ def _to_entity(model: ChunkModel) -> Chunk:
         content=ChunkContent(text=model.text, token_count=model.token_count),
         position=model.position,
         embedding=embedding,
+        language=model.language,
     )

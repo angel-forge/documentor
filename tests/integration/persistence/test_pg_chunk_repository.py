@@ -421,3 +421,134 @@ async def test_search_hybrid_should_not_regress_search_similar_when_called_direc
     assert results[1][0].id == "chunk-compat-far"
     for _, score in results:
         assert 0.0 <= score <= 1.0
+
+
+# ─── Multi-language FTS integration tests ─────────────────────────────────────
+# These tests require the trigger to exist. The trigger is created in the
+# `session_with_trigger` fixture below because create_all only creates ORM
+# table structures, not PostgreSQL triggers.
+
+
+@pytest_asyncio.fixture
+async def session_with_trigger(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> AsyncSession:
+    """Session for trigger-dependent tests.
+
+    The trigger is already installed at session_factory level (via conftest.py).
+    This fixture is a plain session alias kept for semantic clarity.
+    """
+    session = session_factory()
+    yield session
+    await session.close()
+
+
+@pytest_asyncio.fixture
+async def document_for_trigger(session_with_trigger: AsyncSession) -> Document:
+    repo = PgDocumentRepository(session_with_trigger)
+    doc = Document.create(
+        source="https://trigger-test.example.com/docs",
+        title="Trigger Test Doc",
+        source_type=SourceType.URL,
+        chunk_count=2,
+    )
+    await repo.save(doc)
+    await session_with_trigger.commit()
+    return doc
+
+
+@pytest.mark.asyncio
+async def test_save_all_should_populate_search_vector_via_trigger_when_language_is_spanish(
+    session_with_trigger: AsyncSession,
+    document_for_trigger: Document,
+) -> None:
+    """SC-11: trigger fires on INSERT and populates search_vector with correct language."""
+    from sqlalchemy import text as sa_text
+
+    repo = PgChunkRepository(session_with_trigger)
+    chunks = [
+        Chunk(
+            id="chunk-es-1",
+            document_id=document_for_trigger.id,
+            content=ChunkContent(text="La programación asíncrona es fundamental", token_count=6),
+            position=0,
+            language="spanish",
+        ),
+    ]
+    await repo.save_all(chunks)
+    await session_with_trigger.commit()
+
+    result = await session_with_trigger.execute(
+        sa_text("SELECT search_vector IS NOT NULL FROM chunks WHERE id = 'chunk-es-1'")
+    )
+    is_populated = result.scalar()
+    assert is_populated is True
+
+
+@pytest.mark.asyncio
+async def test_fts_search_should_find_spanish_chunks_when_queried_in_spanish(
+    session_with_trigger: AsyncSession,
+    document_for_trigger: Document,
+) -> None:
+    """SC-08 variant: FTS with correct language finds stemmed terms."""
+    repo = PgChunkRepository(session_with_trigger, search_language="spanish")
+    chunks = [
+        Chunk(
+            id="chunk-es-fts-1",
+            document_id=document_for_trigger.id,
+            content=ChunkContent(
+                text="La programación asíncrona es fundamental para el rendimiento",
+                token_count=10,
+            ),
+            position=0,
+            embedding=_make_embedding(0.5),
+            language="spanish",
+        ),
+    ]
+    await repo.save_all(chunks)
+    await session_with_trigger.commit()
+
+    results = await repo._fts_search("programación", "spanish", 5)
+
+    assert len(results) > 0
+    ids = [r[0] for r in results]
+    assert "chunk-es-fts-1" in ids
+
+
+@pytest.mark.asyncio
+async def test_search_similar_should_be_unaffected_by_language_field(
+    session_with_trigger: AsyncSession,
+    document_for_trigger: Document,
+) -> None:
+    """SC-15: search_similar works identically regardless of chunk language."""
+    repo = PgChunkRepository(session_with_trigger)
+    chunks = [
+        Chunk(
+            id="chunk-ml-close",
+            document_id=document_for_trigger.id,
+            content=ChunkContent(text="Close multilang chunk", token_count=3),
+            position=0,
+            embedding=_make_embedding(0.9),
+            language="spanish",
+        ),
+        Chunk(
+            id="chunk-ml-far",
+            document_id=document_for_trigger.id,
+            content=ChunkContent(text="Far multilang chunk", token_count=3),
+            position=1,
+            embedding=_make_embedding(0.1),
+            language="french",
+        ),
+    ]
+    await repo.save_all(chunks)
+    await session_with_trigger.commit()
+
+    query_embedding = _make_embedding(1.0)
+    results = await repo.search_similar(query_embedding, top_k=2)
+
+    assert len(results) == 2
+    ids = [chunk.id for chunk, _ in results]
+    assert "chunk-ml-close" in ids
+    assert "chunk-ml-far" in ids
+    for _, score in results:
+        assert 0.0 <= score <= 1.0

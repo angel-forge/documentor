@@ -8,11 +8,13 @@ export function useIngestFile() {
       file,
       onDuplicate,
       title,
+      language,
     }: {
       file: File
       onDuplicate: "reject" | "skip" | "replace"
       title?: string
-    }) => ingestFile(file, onDuplicate, title),
+      language?: string
+    }) => ingestFile(file, onDuplicate, title, language),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["documents"] })
     },

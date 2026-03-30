@@ -261,3 +261,143 @@ async def test_ingest_file_should_return_422_when_no_file_provided(
     response = await client.post("/ingest/file")
 
     assert response.status_code == 422
+
+
+# --- Language field tests ---
+
+
+@pytest.mark.asyncio
+async def test_ingest_url_should_accept_language_parameter(
+    client: AsyncClient,
+    mock_ingest_documentation: AsyncMock,
+) -> None:
+    mock_ingest_documentation.execute.return_value = mock_ingest_documentation.execute.return_value.__class__(
+        document=mock_ingest_documentation.execute.return_value.document.__class__(
+            id="doc-1",
+            source="https://example.com/docs",
+            title="Example Docs",
+            source_type="url",
+            created_at=mock_ingest_documentation.execute.return_value.document.created_at,
+            chunk_count=3,
+            language="french",
+        ),
+        chunks_created=3,
+    )
+
+    response = await client.post(
+        "/ingest/url",
+        json={"source": "https://example.com/docs", "language": "french"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["document"]["language"] == "french"
+    call_input = mock_ingest_documentation.execute.call_args[0][0]
+    assert call_input.language == "french"
+
+
+@pytest.mark.asyncio
+async def test_ingest_url_should_reject_unsupported_language(
+    client: AsyncClient,
+) -> None:
+    response = await client.post(
+        "/ingest/url",
+        json={"source": "https://example.com/docs", "language": "martian"},
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_ingest_url_should_default_to_english_when_language_omitted(
+    client: AsyncClient,
+    mock_ingest_documentation: AsyncMock,
+) -> None:
+    response = await client.post(
+        "/ingest/url",
+        json={"source": "https://example.com/docs"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["document"]["language"] == "english"
+
+
+@pytest.mark.asyncio
+async def test_ingest_url_should_normalize_language_case(
+    client: AsyncClient,
+    mock_ingest_documentation: AsyncMock,
+) -> None:
+    from documentor.application.dtos import DocumentDTO, IngestResultDTO
+    from datetime import datetime, timezone
+
+    mock_ingest_documentation.execute.return_value = IngestResultDTO(
+        document=DocumentDTO(
+            id="doc-1",
+            source="https://example.com/docs",
+            title="Example Docs",
+            source_type="url",
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            chunk_count=3,
+            language="spanish",
+        ),
+        chunks_created=3,
+    )
+
+    response = await client.post(
+        "/ingest/url",
+        json={"source": "https://example.com/docs", "language": "Spanish"},
+    )
+
+    assert response.status_code == 200
+    call_input = mock_ingest_documentation.execute.call_args[0][0]
+    assert call_input.language == "spanish"
+
+
+@pytest.mark.asyncio
+async def test_ingest_file_should_accept_language_parameter(
+    client: AsyncClient,
+    mock_ingest_file_documentation: MagicMock,
+) -> None:
+    from documentor.application.dtos import DocumentDTO, IngestResultDTO
+    from datetime import datetime, timezone
+
+    mock_use_case = mock_ingest_file_documentation._mock_use_case
+    mock_use_case.execute.return_value = IngestResultDTO(
+        document=DocumentDTO(
+            id="doc-file-1",
+            source="sha256:abc123",
+            title="uploaded",
+            source_type="file",
+            created_at=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            chunk_count=2,
+            language="spanish",
+        ),
+        chunks_created=2,
+    )
+
+    response = await client.post(
+        "/ingest/file",
+        files={"file": ("readme.txt", b"Hello, world!", "text/plain")},
+        data={"language": "spanish"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["document"]["language"] == "spanish"
+    call_input = mock_use_case.execute.call_args[0][0]
+    assert call_input.language == "spanish"
+
+
+@pytest.mark.asyncio
+async def test_list_documents_should_include_language_field(
+    client: AsyncClient,
+    mock_list_documents: AsyncMock,
+) -> None:
+    response = await client.get("/documents")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) > 0
+    assert "language" in data[0]
+    assert data[0]["language"] == "english"

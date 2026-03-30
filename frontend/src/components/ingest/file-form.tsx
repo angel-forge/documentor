@@ -12,6 +12,7 @@ import {
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 import type { ApiError } from "@/api/client"
+import { SUPPORTED_LANGUAGES } from "@/lib/languages"
 
 const ACCEPTED_TYPES = ".txt,.md,.html,.rst,.pdf"
 
@@ -20,6 +21,7 @@ interface FileFormProps {
     file: File,
     onDuplicate: "reject" | "skip" | "replace",
     title?: string,
+    language?: string,
   ) => void
   isPending: boolean
   error: ApiError | null
@@ -28,6 +30,7 @@ interface FileFormProps {
 export function FileForm({ onSubmit, isPending, error }: FileFormProps) {
   const [file, setFile] = useState<File | null>(null)
   const [title, setTitle] = useState("")
+  const [language, setLanguage] = useState("english")
   const [onDuplicate, setOnDuplicate] = useState<"reject" | "skip" | "replace">(
     "reject",
   )
@@ -44,7 +47,7 @@ export function FileForm({ onSubmit, isPending, error }: FileFormProps) {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     if (!file) return
-    onSubmit(file, onDuplicate, title.trim() || undefined)
+    onSubmit(file, onDuplicate, title.trim() || undefined, language)
   }
 
   return (
@@ -100,6 +103,27 @@ export function FileForm({ onSubmit, isPending, error }: FileFormProps) {
           placeholder="e.g. Project README"
           disabled={isPending}
         />
+      </div>
+
+      <div className="space-y-2">
+        <label htmlFor="language-file" className="text-sm font-medium">
+          Document language
+        </label>
+        <Select
+          value={language}
+          onValueChange={setLanguage}
+        >
+          <SelectTrigger id="language-file">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <SelectItem key={lang.value} value={lang.value}>
+                {lang.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-2">
